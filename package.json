@@ -2,22 +2,21 @@
   "name": "df-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "DF-Bot - A GitHub App/Bot for managing and automating your projects",
+  "description": "DF-Bot - Runs fully on GitHub Actions (no PC needed)",
   "author": "DarkFox <darkfox-to@proton.me>",
   "license": "MIT",
   "homepage": "https://github.com/SlabyLol/DF-Bot",
   "keywords": [
-    "probot",
     "github",
-    "probot-app",
+    "github-actions",
+    "bot",
     "df-bot"
   ],
   "scripts": {
-    "start": "probot run ./index.js",
     "test": "node --test"
   },
   "dependencies": {
-    "probot": "^13.0.0"
+    "@octokit/rest": "^21.0.0"
   },
   "engines": {
     "node": ">= 18"
