@@ -1,53 +1,99 @@
 # DF-Bot
 
-**DF-Bot** runs completely on GitHub – **no PC, no server, no external hosting needed**.
+**DF-Bot** runs completely on GitHub – no PC, no server needed.
 
-Everything works with GitHub Actions.
+You configure everything with a simple `df-bot.yml` file.
 
 ## Features
 
-- Welcomes new **Issues**
-- Welcomes new **Pull Requests**
-- Responds to `@df-bot help` in comments
+- Welcome messages for Issues & Pull Requests
+- Commands: `@df-bot help`, `@df-bot label`, `@df-bot close`, `@df-bot reopen`
+- Auto-labels based on title keywords
+- Fully configurable per project via `df-bot.yml`
 
-## How it works
+## How to add DF-Bot to any project
 
-The bot is triggered automatically by GitHub when:
-- Someone opens an Issue
-- Someone opens a Pull Request
-- Someone comments on an Issue/PR
+### Step 1 – Copy these 3 files into your repository
 
-No installation of a GitHub App is required. It uses the built-in `GITHUB_TOKEN`.
+```
+.github/workflows/df-bot.yml
+action.js
+package.json
+```
 
-## Enable the bot on any repository
+### Step 2 – Add the config file (optional but recommended)
 
-### Option 1 – Use this repository
-Just keep the workflow file. The bot is already active in this repo.
+Copy `df-bot.yml` into the **root** of your project and adjust it.
 
-### Option 2 – Add DF-Bot to your other projects
+### Step 3 – Done
 
-1. Copy the folder `.github/workflows/df-bot.yml` into your other repository
-2. Copy `action.js` and `package.json` into the root of that repository
-3. That’s it – the bot starts working immediately
+The bot is now active. No further setup needed.
 
-Or you can make this repository a template and create new projects from it.
+---
 
-## Customize
+## Configuration (`df-bot.yml`)
 
-Edit `action.js` to add more features, for example:
+Example:
 
-- Auto-label issues
-- Close stale issues
-- Auto-approve Dependabot PRs
-- Create project cards
-- Custom commands (`@df-bot label bug`, etc.)
+```yaml
+features:
+  welcome_issues: true
+  welcome_pull_requests: true
+  help_command: true
+  label_command: true
+  close_command: true
+  reopen_command: true
+  auto_labels: true
 
-## Files
+messages:
+  issue_opened: |
+    👋 Danke für das Issue!
+    Tippe `@df-bot help` für Befehle.
+  pull_request_opened: |
+    🚀 Danke für den Pull Request!
+
+commands:
+  help:
+    response: |
+      ### DF-Bot Befehle
+      - `@df-bot help`
+      - `@df-bot label <name>`
+      - `@df-bot close`
+      - `@df-bot reopen`
+
+auto_labels:
+  bug:
+    - bug
+    - error
+    - crash
+  enhancement:
+    - feature
+    - improvement
+
+project:
+  name: Mein Projekt
+  description: Kurze Beschreibung
+  instructions: |
+    - Antworte auf Deutsch
+    - Sei kurz und hilfreich
+```
+
+## Available Commands
+
+| Command                  | What it does                  |
+|--------------------------|-------------------------------|
+| `@df-bot help`           | Shows available commands      |
+| `@df-bot label bug`      | Adds the label "bug"          |
+| `@df-bot close`          | Closes the issue / PR         |
+| `@df-bot reopen`         | Reopens the issue / PR        |
+
+## Files overview
 
 ```
 DF-Bot/
-├── .github/workflows/df-bot.yml   ← Workflow that runs the bot
+├── .github/workflows/df-bot.yml   ← Workflow (must be present)
 ├── action.js                      ← Bot logic
+├── df-bot.yml                     ← Your project configuration
 ├── package.json
 └── README.md
 ```
