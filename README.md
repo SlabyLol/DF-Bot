@@ -1,94 +1,56 @@
 # DF-Bot
 
-**DF-Bot** is a GitHub App (bot) that helps manage and automate your projects.
+**DF-Bot** runs completely on GitHub – **no PC, no server, no external hosting needed**.
 
-It appears as **DF-Bot[bot]** when commenting and acting on repositories.
+Everything works with GitHub Actions.
 
-## What it does right now
+## Features
 
-- Welcomes new **Issues** with a helpful message
+- Welcomes new **Issues**
 - Welcomes new **Pull Requests**
 - Responds to `@df-bot help` in comments
 
-You can easily extend it with more automation.
+## How it works
 
-## Setup (make the bot work)
+The bot is triggered automatically by GitHub when:
+- Someone opens an Issue
+- Someone opens a Pull Request
+- Someone comments on an Issue/PR
 
-### 1. Install dependencies
+No installation of a GitHub App is required. It uses the built-in `GITHUB_TOKEN`.
 
-```bash
-npm install
-```
+## Enable the bot on any repository
 
-### 2. Create the GitHub App
+### Option 1 – Use this repository
+Just keep the workflow file. The bot is already active in this repo.
 
-1. Run the bot locally:
-   ```bash
-   npm start
-   ```
-2. Open the URL shown in the terminal (usually http://localhost:3000)
-3. Click **Register a GitHub App**
-4. Choose a name (e.g. `DF-Bot`)
-5. Select the repositories you want the bot to work on
-6. Download the private key (`.pem` file)
+### Option 2 – Add DF-Bot to your other projects
 
-### 3. Configure environment
+1. Copy the folder `.github/workflows/df-bot.yml` into your other repository
+2. Copy `action.js` and `package.json` into the root of that repository
+3. That’s it – the bot starts working immediately
 
-Copy the example file:
+Or you can make this repository a template and create new projects from it.
 
-```bash
-cp .env.example .env
-```
+## Customize
 
-Fill in:
-
-- `APP_ID` → from the GitHub App settings page
-- `WEBHOOK_SECRET` → the secret you set (or leave `development` for local testing)
-- `PRIVATE_KEY` → paste the full content of the downloaded `.pem` file
-
-### 4. Install the App on your repositories
-
-Go to the GitHub App page → **Install App** → select the repositories where you want DF-Bot to work.
-
-### 5. Run the bot
-
-```bash
-npm start
-```
-
-For local development you can also use [smee.io](https://smee.io) as a webhook proxy.
-
-## Deploy (recommended)
-
-You can deploy DF-Bot for free on:
-
-- [Railway](https://railway.app)
-- [Render](https://render.com)
-- [Fly.io](https://fly.io)
-- GitHub Codespaces + always-on setup
-
-Just set the same environment variables (`APP_ID`, `PRIVATE_KEY`, `WEBHOOK_SECRET`) in the hosting platform.
-
-## Project structure
-
-```
-DF-Bot/
-├── index.js          # Main bot logic
-├── app.yml           # GitHub App manifest
-├── package.json
-├── .env.example
-└── README.md
-```
-
-## Customize the bot
-
-Edit `index.js` to add more features, for example:
+Edit `action.js` to add more features, for example:
 
 - Auto-label issues
 - Close stale issues
 - Auto-approve Dependabot PRs
-- Create project boards
-- Respond to more commands
+- Create project cards
+- Custom commands (`@df-bot label bug`, etc.)
+
+## Files
+
+```
+DF-Bot/
+├── .github/workflows/df-bot.yml   ← Workflow that runs the bot
+├── action.js                      ← Bot logic
+├── package.json
+└── README.md
+```
 
 ## License
 
