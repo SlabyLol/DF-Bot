@@ -3,32 +3,24 @@
 ![DF-Bot Icon](ico.png)
 
 **DF-Bot** – Fully featured GitHub bot that runs completely on **GitHub Actions**.
-No PC, no server, no external hosting needed.
+No PC, no server needed.
 
-Everything is controlled by the `df-bot.yml` file.
+It can manage issues, labels, assignees **and also create commits, files, branches and pull requests**.
 
 ## Features
 
 - Welcome messages for Issues & Pull Requests
-- Many commands via comments (executed by GitHub Actions)
-- Auto-labels based on title keywords
-- **Auto-assign** (round-robin, random, or all)
-- Add / remove labels
-- Assign / unassign users
-- Close / reopen
-- Lock / unlock comments
-- Change title
-- Set milestone
-- Fully configurable per project
+- Labels, assign, close, lock, title, milestone
+- **Create / update / delete files** (with automatic commit)
+- **Create branches**
+- **Create Pull Requests**
+- **Bump version** in package.json
+- Auto-labels & Auto-assign
+- Fully configurable via `df-bot.yml`
 
-## How to add DF-Bot to your account / projects
+## How to add DF-Bot to a repository
 
-This bot works **per repository**. There is no single "install for whole account" button because it uses GitHub Actions.
-
-### Option 1 – Add to one repository (recommended)
-
-1. Go to the repository where you want the bot
-2. Copy these 4 files into it:
+Copy these 4 files into your repository:
 
 ```
 .github/workflows/df-bot.yml
@@ -37,68 +29,65 @@ package.json
 df-bot.yml
 ```
 
-3. Commit the files
-4. Done – the bot is now active in that repository
+Commit them → the bot is immediately active.
 
-### Option 2 – Use this repository as template
+Or use this repository as a template.
 
-1. On GitHub open https://github.com/SlabyLol/DF-Bot
-2. Click **Use this template** → **Create a new repository**
-3. The new repository already has the bot ready
+## All Commands
 
-### Option 3 – Add to many repositories
-
-Just repeat Option 1 for each repository.
-You can also automate this later with a script if needed.
-
-## All Commands (via GitHub Actions)
-
-Write a comment under any Issue or Pull Request:
-
+### Labels & Assignment
 | Command | Description |
 |---------|-------------|
-| `@df-bot help` | Show all commands |
 | `@df-bot label <name>` | Add a label |
 | `@df-bot unlabel <name>` | Remove a label |
 | `@df-bot assign <user>` | Assign someone |
 | `@df-bot assign me` | Assign yourself |
-| `@df-bot unassign <user>` | Remove assignee |
+| `@df-bot unassign <user>` | Unassign |
 | `@df-bot unassign me` | Unassign yourself |
-| `@df-bot close` | Close the issue/PR |
-| `@df-bot reopen` | Reopen the issue/PR |
+
+### Status
+| Command | Description |
+|---------|-------------|
+| `@df-bot close` | Close issue/PR |
+| `@df-bot reopen` | Reopen |
 | `@df-bot lock` | Lock comments |
 | `@df-bot unlock` | Unlock comments |
-| `@df-bot title <new title>` | Change the title |
-| `@df-bot milestone <name>` | Set a milestone |
+| `@df-bot title <new title>` | Change title |
+| `@df-bot milestone <name>` | Set milestone |
 
-The commands are executed by the GitHub Actions workflow.
+### Commits & Files
+| Command | Description |
+|---------|-------------|
+| `@df-bot create-file path/file.txt \| content here` | Create file + commit |
+| `@df-bot update-file path/file.txt \| new content` | Update file + commit |
+| `@df-bot delete-file path/file.txt` | Delete file + commit |
+| `@df-bot create-branch feature/name` | Create a new branch |
+| `@df-bot create-pr My PR title` | Create a Pull Request |
+| `@df-bot bump patch` | Bump version (patch/minor/major) |
 
-## Auto-Assign
+### Help
+| Command | Description |
+|---------|-------------|
+| `@df-bot help` | Show all commands |
 
-In `df-bot.yml`:
-
-```yaml
-auto_assign:
-  enabled: true
-  strategy: round_robin   # or "random" / "all"
-  assignees:
-    - SlabyLol
-    - other-user
-  ignore_labels:
-    - wip
-    - draft
-```
-
-## Files
+## Examples
 
 ```
-DF-Bot/
-├── .github/workflows/df-bot.yml   ← GitHub Actions workflow
-├── action.js                      ← Bot logic
-├── df-bot.yml                     ← Configuration
-├── ico.png                        ← Icon
-├── package.json
-└── README.md
+@df-bot create-file docs/hello.md | # Hello World
+This is a new file created by DF-Bot.
+```
+
+```
+@df-bot update-file README.md | # New README content
+```
+
+```
+@df-bot bump minor
+```
+
+```
+@df-bot create-branch feature/new-login
+@df-bot create-pr Add new login feature
 ```
 
 ## License
