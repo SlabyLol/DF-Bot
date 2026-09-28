@@ -1,65 +1,122 @@
-# DF-Bot Configuration
-# Place this file in the root of any repository where you want DF-Bot to work.
+# =====================================================
+# DF-Bot – Full Configuration
+# =====================================================
+# Put this file in the root of your repository.
+# Everything is controlled here.
 
-# Enable / disable features
+# -------------------- Features --------------------
 features:
   welcome_issues: true
   welcome_pull_requests: true
   help_command: true
   label_command: true
+  unlabel_command: true
   close_command: true
   reopen_command: true
+  assign_command: true
+  unassign_command: true
   auto_labels: true
+  auto_assign: true
+  lock_command: true
+  unlock_command: true
+  title_command: true
+  milestone_command: true
 
-# Custom welcome messages
+# -------------------- Messages --------------------
 messages:
   issue_opened: |
-    👋 Thanks for opening this issue!
+    👋 Danke für das Issue!
 
-    I'm **DF-Bot**. I help manage this project.
-    Type `@df-bot help` to see available commands.
+    Ich bin **DF-Bot** und helfe bei diesem Projekt.
+    Tippe `@df-bot help` um alle Befehle zu sehen.
   pull_request_opened: |
-    🚀 Thanks for the pull request!
+    🚀 Danke für den Pull Request!
 
-    **DF-Bot** is watching. Make sure CI passes.
-    Type `@df-bot help` for commands.
+    **DF-Bot** schaut drüber. Bitte CI grün halten.
+    Tippe `@df-bot help` für Befehle.
 
-# Available commands (users type these in comments)
+# -------------------- Commands --------------------
 commands:
   help:
-    description: Show available commands
     response: |
-      ### DF-Bot Commands
+      ### 🤖 DF-Bot – Alle Befehle
 
-      - `@df-bot help` → Show this help
-      - `@df-bot label <name>` → Add a label (example: `@df-bot label bug`)
-      - `@df-bot close` → Close the issue/PR
-      - `@df-bot reopen` → Reopen the issue/PR
+      **Labels**
+      - `@df-bot label <name>` → Label hinzufügen
+      - `@df-bot unlabel <name>` → Label entfernen
 
-      Customize everything in `df-bot.yml`.
+      **Zuweisung**
+      - `@df-bot assign <username>` → jemanden zuweisen
+      - `@df-bot assign me` → dich selbst zuweisen
+      - `@df-bot unassign <username>` → Zuweisung entfernen
+      - `@df-bot unassign me` → dich selbst entfernen
 
-# Auto labels – when title contains these words, the label is added automatically
+      **Status**
+      - `@df-bot close` → Issue/PR schließen
+      - `@df-bot reopen` → wieder öffnen
+      - `@df-bot lock` → Kommentare sperren
+      - `@df-bot unlock` → Kommentare entsperren
+
+      **Sonstiges**
+      - `@df-bot title <neuer Titel>` → Titel ändern
+      - `@df-bot milestone <name>` → Milestone setzen
+      - `@df-bot help` → diese Hilfe anzeigen
+
+# -------------------- Auto Labels --------------------
+# Wenn der Titel eines dieser Wörter enthält → Label wird gesetzt
 auto_labels:
   bug:
     - bug
     - error
     - crash
     - broken
+    - fehler
+    - exception
   enhancement:
     - feature
     - enhancement
     - improvement
     - request
+    - wunsch
+    - verbesserung
   documentation:
     - docs
     - documentation
     - readme
+    - dokumentation
+  question:
+    - question
+    - frage
+    - how
+    - warum
+    - wieso
+  good first issue:
+    - beginner
+    - easy
+    - first issue
+    - einsteiger
 
-# Project instructions (context for the bot)
+# -------------------- Auto Assign --------------------
+# Automatische Zuweisung bei neuen Issues / PRs
+auto_assign:
+  enabled: true
+  # Mögliche Strategien: "round_robin", "random", "all"
+  strategy: round_robin
+  # Liste der Personen, die zugewiesen werden können
+  assignees:
+    - SlabyLol
+  # Nur bei bestimmten Labels zuweisen (leer = immer)
+  only_labels: []
+  # Bei diesen Labels NIEMALS auto-assignen
+  ignore_labels:
+    - wip
+    - draft
+
+# -------------------- Project Info --------------------
 project:
-  name: My Project
-  description: Short description of what this project is about
+  name: DF-Bot
+  description: GitHub Bot für automatisierte Projektverwaltung
   instructions: |
-    - Always be helpful and concise
-    - Prefer German if the user writes in German
-    - Keep responses short
+    - Antworte immer auf Deutsch wenn der User Deutsch schreibt
+    - Sei kurz, klar und hilfreich
+    - Nutze Emojis sparsam aber sinnvoll
