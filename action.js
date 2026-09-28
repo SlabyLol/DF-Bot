@@ -1,6 +1,7 @@
 /**
  * DF-Bot – Full featured GitHub Actions Bot
  * Supports df-bot.yml configuration + many commands + auto-assign
+ * All messages in English by default
  */
 
 import { Octokit } from "@octokit/rest";
@@ -35,40 +36,40 @@ const defaultConfig = {
     milestone_command: true,
   },
   messages: {
-    issue_opened: "👋 Danke für das Issue!\n\nIch bin **DF-Bot**. Tippe `@df-bot help` für alle Befehle.",
-    pull_request_opened: "🚀 Danke für den Pull Request!\n\n**DF-Bot** schaut drüber. Tippe `@df-bot help` für Befehle.",
+    issue_opened: "👋 Thanks for opening this issue!\n\nI'm **DF-Bot**. Type `@df-bot help` to see all commands.",
+    pull_request_opened: "🚀 Thanks for the pull request!\n\n**DF-Bot** is watching. Type `@df-bot help` for commands.",
   },
   commands: {
     help: {
-      response: `### 🤖 DF-Bot – Alle Befehle
+      response: `### 🤖 DF-Bot – All Commands
 
 **Labels**
-- \`@df-bot label <name>\` → Label hinzufügen
-- \`@df-bot unlabel <name>\` → Label entfernen
+- \`@df-bot label <name>\` → Add a label
+- \`@df-bot unlabel <name>\` → Remove a label
 
-**Zuweisung**
-- \`@df-bot assign <username>\` → jemanden zuweisen
-- \`@df-bot assign me\` → dich selbst zuweisen
-- \`@df-bot unassign <username>\` → Zuweisung entfernen
-- \`@df-bot unassign me\` → dich selbst entfernen
+**Assignment**
+- \`@df-bot assign <username>\` → Assign someone
+- \`@df-bot assign me\` → Assign yourself
+- \`@df-bot unassign <username>\` → Remove assignee
+- \`@df-bot unassign me\` → Unassign yourself
 
 **Status**
-- \`@df-bot close\` → schließen
-- \`@df-bot reopen\` → wieder öffnen
-- \`@df-bot lock\` → Kommentare sperren
-- \`@df-bot unlock\` → Kommentare entsperren
+- \`@df-bot close\` → Close the issue/PR
+- \`@df-bot reopen\` → Reopen the issue/PR
+- \`@df-bot lock\` → Lock comments
+- \`@df-bot unlock\` → Unlock comments
 
-**Sonstiges**
-- \`@df-bot title <neuer Titel>\` → Titel ändern
-- \`@df-bot milestone <name>\` → Milestone setzen
-- \`@df-bot help\` → diese Hilfe`,
+**Other**
+- \`@df-bot title <new title>\` → Change the title
+- \`@df-bot milestone <name>\` → Set a milestone
+- \`@df-bot help\` → Show this help`,
     },
   },
   auto_labels: {
-    bug: ["bug", "error", "crash", "broken", "fehler"],
-    enhancement: ["feature", "enhancement", "improvement", "request", "wunsch"],
-    documentation: ["docs", "documentation", "readme", "dokumentation"],
-    question: ["question", "frage", "how", "warum"],
+    bug: ["bug", "error", "crash", "broken", "exception"],
+    enhancement: ["feature", "enhancement", "improvement", "request"],
+    documentation: ["docs", "documentation", "readme"],
+    question: ["question", "how", "why", "help"],
   },
   auto_assign: {
     enabled: true,
@@ -132,10 +133,7 @@ async function doAutoAssign(issueNumber, existingLabels, config) {
   const aa = config.auto_assign;
   if (!config.features.auto_assign || !aa?.enabled || !aa.assignees?.length) return;
 
-  // Check ignore labels
   if (aa.ignore_labels?.some((l) => existingLabels.includes(l))) return;
-
-  // Check only_labels
   if (aa.only_labels?.length > 0 && !aa.only_labels.some((l) => existingLabels.includes(l))) return;
 
   let chosen = [];
@@ -145,7 +143,6 @@ async function doAutoAssign(issueNumber, existingLabels, config) {
   } else if (aa.strategy === "random") {
     chosen = [aa.assignees[Math.floor(Math.random() * aa.assignees.length)]];
   } else {
-    // round_robin – simple version using issue number
     const index = issueNumber % aa.assignees.length;
     chosen = [aa.assignees[index]];
   }
@@ -218,9 +215,9 @@ async function main() {
         const label = match[1];
         try {
           await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [label] });
-          await comment(issueNumber, `✅ Label \`${label}\` hinzugefügt.`);
+          await comment(issueNumber, `✅ Label \`${label}\` added.`);
         } catch {
-          await comment(issueNumber, `❌ Label \`${label}\` konnte nicht hinzugefügt werden. Existiert es schon im Repo?`);
+          await comment(issueNumber, `❌ Could not add label \`${label}\`. Does it exist in the repository?`);
         }
       }
       return;
@@ -233,9 +230,9 @@ async function main() {
         const label = match[1];
         try {
           await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label });
-          await comment(issueNumber, `✅ Label \`${label}\` entfernt.`);
+          await comment(issueNumber, `✅ Label \`${label}\` removed.`);
         } catch {
-          await comment(issueNumber, `❌ Label \`${label}\` konnte nicht entfernt werden.`);
+          await comment(issueNumber, `❌ Could not remove label \`${label}\`.`);
         }
       }
       return;
@@ -249,9 +246,9 @@ async function main() {
         if (user.toLowerCase() === "me") user = sender;
         try {
           await octokit.issues.addAssignees({ owner, repo, issue_number: issueNumber, assignees: [user] });
-          await comment(issueNumber, `✅ @${user} wurde zugewiesen.`);
+          await comment(issueNumber, `✅ Assigned @${user}.`);
         } catch {
-          await comment(issueNumber, `❌ Konnte @${user} nicht zuweisen.`);
+          await comment(issueNumber, `❌ Could not assign @${user}.`);
         }
       }
       return;
@@ -265,9 +262,9 @@ async function main() {
         if (user.toLowerCase() === "me") user = sender;
         try {
           await octokit.issues.removeAssignees({ owner, repo, issue_number: issueNumber, assignees: [user] });
-          await comment(issueNumber, `✅ @${user} wurde entfernt.`);
+          await comment(issueNumber, `✅ Unassigned @${user}.`);
         } catch {
-          await comment(issueNumber, `❌ Konnte @${user} nicht entfernen.`);
+          await comment(issueNumber, `❌ Could not unassign @${user}.`);
         }
       }
       return;
@@ -276,14 +273,14 @@ async function main() {
     // CLOSE
     if (lower.match(/@df-bot\s+close\b/i) && config.features.close_command) {
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "closed" });
-      await comment(issueNumber, "✅ Geschlossen.");
+      await comment(issueNumber, "✅ Closed.");
       return;
     }
 
     // REOPEN
     if (lower.match(/@df-bot\s+reopen\b/i) && config.features.reopen_command) {
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "open" });
-      await comment(issueNumber, "✅ Wieder geöffnet.");
+      await comment(issueNumber, "✅ Reopened.");
       return;
     }
 
@@ -291,9 +288,9 @@ async function main() {
     if (lower.match(/@df-bot\s+lock\b/i) && config.features.lock_command) {
       try {
         await octokit.issues.lock({ owner, repo, issue_number: issueNumber });
-        await comment(issueNumber, "🔒 Kommentare wurden gesperrt.");
+        await comment(issueNumber, "🔒 Comments locked.");
       } catch {
-        await comment(issueNumber, "❌ Sperren fehlgeschlagen.");
+        await comment(issueNumber, "❌ Failed to lock.");
       }
       return;
     }
@@ -302,9 +299,9 @@ async function main() {
     if (lower.match(/@df-bot\s+unlock\b/i) && config.features.unlock_command) {
       try {
         await octokit.issues.unlock({ owner, repo, issue_number: issueNumber });
-        await comment(issueNumber, "🔓 Kommentare wurden entsperrt.");
+        await comment(issueNumber, "🔓 Comments unlocked.");
       } catch {
-        await comment(issueNumber, "❌ Entsperren fehlgeschlagen.");
+        await comment(issueNumber, "❌ Failed to unlock.");
       }
       return;
     }
@@ -316,9 +313,9 @@ async function main() {
         const newTitle = match[1].trim();
         try {
           await octokit.issues.update({ owner, repo, issue_number: issueNumber, title: newTitle });
-          await comment(issueNumber, `✅ Titel geändert zu: **${newTitle}**`);
+          await comment(issueNumber, `✅ Title changed to: **${newTitle}**`);
         } catch {
-          await comment(issueNumber, "❌ Titel konnte nicht geändert werden.");
+          await comment(issueNumber, "❌ Could not change title.");
         }
       }
       return;
@@ -343,12 +340,12 @@ async function main() {
               issue_number: issueNumber,
               milestone: milestone.number,
             });
-            await comment(issueNumber, `✅ Milestone **${milestone.title}** gesetzt.`);
+            await comment(issueNumber, `✅ Milestone **${milestone.title}** set.`);
           } else {
-            await comment(issueNumber, `❌ Milestone "${milestoneName}" nicht gefunden.`);
+            await comment(issueNumber, `❌ Milestone "${milestoneName}" not found.`);
           }
         } catch {
-          await comment(issueNumber, "❌ Milestone konnte nicht gesetzt werden.");
+          await comment(issueNumber, "❌ Could not set milestone.");
         }
       }
       return;
