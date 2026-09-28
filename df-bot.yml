@@ -1,0 +1,65 @@
+# DF-Bot Configuration
+# Place this file in the root of any repository where you want DF-Bot to work.
+
+# Enable / disable features
+features:
+  welcome_issues: true
+  welcome_pull_requests: true
+  help_command: true
+  label_command: true
+  close_command: true
+  reopen_command: true
+  auto_labels: true
+
+# Custom welcome messages
+messages:
+  issue_opened: |
+    👋 Thanks for opening this issue!
+
+    I'm **DF-Bot**. I help manage this project.
+    Type `@df-bot help` to see available commands.
+  pull_request_opened: |
+    🚀 Thanks for the pull request!
+
+    **DF-Bot** is watching. Make sure CI passes.
+    Type `@df-bot help` for commands.
+
+# Available commands (users type these in comments)
+commands:
+  help:
+    description: Show available commands
+    response: |
+      ### DF-Bot Commands
+
+      - `@df-bot help` → Show this help
+      - `@df-bot label <name>` → Add a label (example: `@df-bot label bug`)
+      - `@df-bot close` → Close the issue/PR
+      - `@df-bot reopen` → Reopen the issue/PR
+
+      Customize everything in `df-bot.yml`.
+
+# Auto labels – when title contains these words, the label is added automatically
+auto_labels:
+  bug:
+    - bug
+    - error
+    - crash
+    - broken
+  enhancement:
+    - feature
+    - enhancement
+    - improvement
+    - request
+  documentation:
+    - docs
+    - documentation
+    - readme
+
+# Project instructions (context for the bot)
+project:
+  name: My Project
+  description: Short description of what this project is about
+  instructions: |
+    - Always be helpful and concise
+    - Prefer German if the user writes in German
+    - Keep responses short
