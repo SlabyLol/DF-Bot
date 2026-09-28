@@ -1,0 +1,26 @@
+{
+  "name": "df-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "DF-Bot - A GitHub App/Bot for managing and automating your projects",
+  "author": "DarkFox <darkfox-to@proton.me>",
+  "license": "MIT",
+  "homepage": "https://github.com/SlabyLol/DF-Bot",
+  "keywords": [
+    "probot",
+    "github",
+    "probot-app",
+    "df-bot"
+  ],
+  "scripts": {
+    "start": "probot run ./index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "probot": "^13.0.0"
+  },
+  "engines": {
+    "node": ">= 18"
+  },
+  "type": "module"
+}
