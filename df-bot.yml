@@ -1,10 +1,7 @@
 # =====================================================
 # DF-Bot – Full Configuration
 # =====================================================
-# Put this file in the root of your repository.
-# Everything is controlled here.
 
-# -------------------- Features --------------------
 features:
   welcome_issues: true
   welcome_pull_requests: true
@@ -21,8 +18,14 @@ features:
   unlock_command: true
   title_command: true
   milestone_command: true
+  # Commit features
+  create_file_command: true
+  update_file_command: true
+  delete_file_command: true
+  create_branch_command: true
+  create_pr_command: true
+  bump_version_command: true
 
-# -------------------- Messages --------------------
 messages:
   issue_opened: |
     👋 Thanks for opening this issue!
@@ -35,7 +38,6 @@ messages:
     **DF-Bot** is watching. Please keep CI green.
     Type `@df-bot help` for commands.
 
-# -------------------- Commands --------------------
 commands:
   help:
     response: |
@@ -52,18 +54,26 @@ commands:
       - `@df-bot unassign me` → Unassign yourself
 
       **Status**
-      - `@df-bot close` → Close the issue/PR
-      - `@df-bot reopen` → Reopen the issue/PR
+      - `@df-bot close` → Close
+      - `@df-bot reopen` → Reopen
       - `@df-bot lock` → Lock comments
       - `@df-bot unlock` → Unlock comments
 
-      **Other**
-      - `@df-bot title <new title>` → Change the title
-      - `@df-bot milestone <name>` → Set a milestone
+      **Title & Milestone**
+      - `@df-bot title <new title>` → Change title
+      - `@df-bot milestone <name>` → Set milestone
+
+      **Commits & Files**
+      - `@df-bot create-file <path> | <content>` → Create file + commit
+      - `@df-bot update-file <path> | <content>` → Update file + commit
+      - `@df-bot delete-file <path>` → Delete file + commit
+      - `@df-bot create-branch <name>` → Create branch
+      - `@df-bot create-pr <title>` → Create Pull Request
+      - `@df-bot bump patch|minor|major` → Bump version in package.json
+
+      **Help**
       - `@df-bot help` → Show this help
 
-# -------------------- Auto Labels --------------------
-# When the title contains one of these words → label is added
 auto_labels:
   bug:
     - bug
@@ -85,16 +95,9 @@ auto_labels:
     - how
     - why
     - help
-  good first issue:
-    - beginner
-    - easy
-    - first issue
-    - good first issue
 
-# -------------------- Auto Assign --------------------
 auto_assign:
   enabled: true
-  # Strategies: "round_robin", "random", "all"
   strategy: round_robin
   assignees:
     - SlabyLol
@@ -103,11 +106,9 @@ auto_assign:
     - wip
     - draft
 
-# -------------------- Project Info --------------------
 project:
   name: DF-Bot
-  description: GitHub Bot for automated project management
+  description: GitHub Bot for automated project management with commit support
   instructions: |
     - Always reply in English
     - Be short, clear and helpful
-    - Use emojis sparingly but meaningfully
