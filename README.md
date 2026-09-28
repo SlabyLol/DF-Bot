@@ -1,99 +1,84 @@
 # DF-Bot
 
-**DF-Bot** runs completely on GitHub – no PC, no server needed.
+**DF-Bot** – Voll ausgestatteter GitHub-Bot, der komplett auf GitHub Actions läuft.
+Kein PC, kein Server, kein Hosting nötig.
 
-You configure everything with a simple `df-bot.yml` file.
+Alles wird über die Datei `df-bot.yml` gesteuert.
 
 ## Features
 
-- Welcome messages for Issues & Pull Requests
-- Commands: `@df-bot help`, `@df-bot label`, `@df-bot close`, `@df-bot reopen`
-- Auto-labels based on title keywords
-- Fully configurable per project via `df-bot.yml`
+- Willkommensnachrichten für Issues & Pull Requests
+- Viele Commands per Kommentar
+- Auto-Labels anhand von Keywords im Titel
+- **Auto-Assign** (Round-Robin, Random oder Alle)
+- Labels hinzufügen / entfernen
+- Zuweisen / Entfernen von Assignees
+- Schließen / Wieder öffnen
+- Lock / Unlock
+- Titel ändern
+- Milestone setzen
+- Komplett konfigurierbar pro Projekt
 
-## How to add DF-Bot to any project
+## Bot zu einem Projekt hinzufügen
 
-### Step 1 – Copy these 3 files into your repository
+Kopiere diese Dateien in dein Repository:
 
 ```
 .github/workflows/df-bot.yml
 action.js
 package.json
+df-bot.yml
 ```
 
-### Step 2 – Add the config file (optional but recommended)
+Danach ist der Bot sofort aktiv.
 
-Copy `df-bot.yml` into the **root** of your project and adjust it.
+## Alle Commands
 
-### Step 3 – Done
+| Befehl | Beschreibung |
+|--------|--------------|
+| `@df-bot help` | Zeigt alle Befehle |
+| `@df-bot label <name>` | Label hinzufügen |
+| `@df-bot unlabel <name>` | Label entfernen |
+| `@df-bot assign <user>` | jemanden zuweisen |
+| `@df-bot assign me` | dich selbst zuweisen |
+| `@df-bot unassign <user>` | Zuweisung entfernen |
+| `@df-bot unassign me` | dich selbst entfernen |
+| `@df-bot close` | Issue/PR schließen |
+| `@df-bot reopen` | wieder öffnen |
+| `@df-bot lock` | Kommentare sperren |
+| `@df-bot unlock` | Kommentare entsperren |
+| `@df-bot title <neuer Titel>` | Titel ändern |
+| `@df-bot milestone <name>` | Milestone setzen |
 
-The bot is now active. No further setup needed.
+## Auto-Assign einstellen
 
----
-
-## Configuration (`df-bot.yml`)
-
-Example:
+In der `df-bot.yml`:
 
 ```yaml
-features:
-  welcome_issues: true
-  welcome_pull_requests: true
-  help_command: true
-  label_command: true
-  close_command: true
-  reopen_command: true
-  auto_labels: true
-
-messages:
-  issue_opened: |
-    👋 Danke für das Issue!
-    Tippe `@df-bot help` für Befehle.
-  pull_request_opened: |
-    🚀 Danke für den Pull Request!
-
-commands:
-  help:
-    response: |
-      ### DF-Bot Befehle
-      - `@df-bot help`
-      - `@df-bot label <name>`
-      - `@df-bot close`
-      - `@df-bot reopen`
-
-auto_labels:
-  bug:
-    - bug
-    - error
-    - crash
-  enhancement:
-    - feature
-    - improvement
-
-project:
-  name: Mein Projekt
-  description: Kurze Beschreibung
-  instructions: |
-    - Antworte auf Deutsch
-    - Sei kurz und hilfreich
+auto_assign:
+  enabled: true
+  strategy: round_robin   # oder "random" / "all"
+  assignees:
+    - SlabyLol
+    - anderer-user
+  ignore_labels:
+    - wip
+    - draft
 ```
 
-## Available Commands
+## Icon
 
-| Command                  | What it does                  |
-|--------------------------|-------------------------------|
-| `@df-bot help`           | Shows available commands      |
-| `@df-bot label bug`      | Adds the label "bug"          |
-| `@df-bot close`          | Closes the issue / PR         |
-| `@df-bot reopen`         | Reopens the issue / PR        |
+Du kannst ein Icon hochladen. Da der Bot über GitHub Actions läuft, erscheinen Kommentare aktuell als `github-actions`. Ein eigenes Icon ist erst möglich, wenn wir später auf eine echte GitHub App umstellen.
 
-## Files overview
+Lade dein Icon einfach hier im Repository hoch (z.B. als `icon.png`), dann können wir es später verwenden.
+
+## Dateien
 
 ```
 DF-Bot/
-├── .github/workflows/df-bot.yml   ← Workflow (must be present)
-├── action.js                      ← Bot logic
-├── df-bot.yml                     ← Your project configuration
+├── .github/workflows/df-bot.yml
+├── action.js
+├── df-bot.yml          ← hier alles konfigurieren
 ├── package.json
 └── README.md
 ```
