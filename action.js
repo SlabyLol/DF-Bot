@@ -1,7 +1,6 @@
 /**
  * DF-Bot – Full featured GitHub Actions Bot
- * Supports df-bot.yml configuration + many commands + auto-assign
- * All messages in English by default
+ * Supports commits, file changes, PRs, labels, assign, and more
  */
 
 import { Octokit } from "@octokit/rest";
@@ -15,6 +14,7 @@ const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"))
 
 const owner = event.repository.owner.login;
 const repo = event.repository.name;
+const defaultBranch = event.repository.default_branch || "main";
 
 // -------------------- Default Config --------------------
 const defaultConfig = {
@@ -34,6 +34,13 @@ const defaultConfig = {
     unlock_command: true,
     title_command: true,
     milestone_command: true,
+    // Commit features
+    create_file_command: true,
+    update_file_command: true,
+    delete_file_command: true,
+    create_branch_command: true,
+    create_pr_command: true,
+    bump_version_command: true,
   },
   messages: {
     issue_opened: "👋 Thanks for opening this issue!\n\nI'm **DF-Bot**. Type `@df-bot help` to see all commands.",
@@ -55,13 +62,23 @@ const defaultConfig = {
 
 **Status**
 - \`@df-bot close\` → Close the issue/PR
-- \`@df-bot reopen\` → Reopen the issue/PR
+- \`@df-bot reopen\` → Reopen
 - \`@df-bot lock\` → Lock comments
 - \`@df-bot unlock\` → Unlock comments
 
-**Other**
-- \`@df-bot title <new title>\` → Change the title
-- \`@df-bot milestone <name>\` → Set a milestone
+**Title & Milestone**
+- \`@df-bot title <new title>\` → Change title
+- \`@df-bot milestone <name>\` → Set milestone
+
+**Commits & Files**
+- \`@df-bot create-file <path> | <content>\` → Create a new file (commits)
+- \`@df-bot update-file <path> | <content>\` → Update a file (commits)
+- \`@df-bot delete-file <path>\` → Delete a file (commits)
+- \`@df-bot create-branch <name>\` → Create a new branch
+- \`@df-bot create-pr <title>\` → Create a Pull Request from current branch
+- \`@df-bot bump patch|minor|major\` → Bump version in package.json
+
+**Help**
 - \`@df-bot help\` → Show this help`,
     },
   },
@@ -107,22 +124,55 @@ async function comment(issueNumber, body) {
   await octokit.issues.createComment({ owner, repo, issue_number: issueNumber, body });
 }
 
+async function getFileSha(path, branch = defaultBranch) {
+  try {
+    const { data } = await octokit.repos.getContent({ owner, repo, path, ref: branch });
+    return data.sha;
+  } catch {
+    return null;
+  }
+}
+
+async function createOrUpdateFile(path, content, message, branch = defaultBranch) {
+  const sha = await getFileSha(path, branch);
+  const params = {
+    owner,
+    repo,
+    path,
+    message,
+    content: Buffer.from(content).toString("base64"),
+    branch,
+  };
+  if (sha) params.sha = sha;
+  const { data } = await octokit.repos.createOrUpdateFileContents(params);
+  return data;
+}
+
+async function deleteFile(path, message, branch = defaultBranch) {
+  const sha = await getFileSha(path, branch);
+  if (!sha) throw new Error("File not found");
+  await octokit.repos.deleteFile({
+    owner,
+    repo,
+    path,
+    message,
+    sha,
+    branch,
+  });
+}
+
 async function addAutoLabels(issueNumber, title, config) {
   if (!config.features.auto_labels || !config.auto_labels) return;
-
   const titleLower = title.toLowerCase();
   const labelsToAdd = [];
-
   for (const [label, keywords] of Object.entries(config.auto_labels)) {
     if (keywords.some((kw) => titleLower.includes(String(kw).toLowerCase()))) {
       labelsToAdd.push(label);
     }
   }
-
   if (labelsToAdd.length > 0) {
     try {
       await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: labelsToAdd });
-      console.log("Auto labels added:", labelsToAdd.join(", "));
     } catch (err) {
       console.log("Auto label failed:", err.message);
     }
@@ -132,29 +182,16 @@ async function addAutoLabels(issueNumber, title, config) {
 async function doAutoAssign(issueNumber, existingLabels, config) {
   const aa = config.auto_assign;
   if (!config.features.auto_assign || !aa?.enabled || !aa.assignees?.length) return;
-
   if (aa.ignore_labels?.some((l) => existingLabels.includes(l))) return;
   if (aa.only_labels?.length > 0 && !aa.only_labels.some((l) => existingLabels.includes(l))) return;
 
   let chosen = [];
-
-  if (aa.strategy === "all") {
-    chosen = aa.assignees;
-  } else if (aa.strategy === "random") {
-    chosen = [aa.assignees[Math.floor(Math.random() * aa.assignees.length)]];
-  } else {
-    const index = issueNumber % aa.assignees.length;
-    chosen = [aa.assignees[index]];
-  }
+  if (aa.strategy === "all") chosen = aa.assignees;
+  else if (aa.strategy === "random") chosen = [aa.assignees[Math.floor(Math.random() * aa.assignees.length)]];
+  else chosen = [aa.assignees[issueNumber % aa.assignees.length]];
 
   try {
-    await octokit.issues.addAssignees({
-      owner,
-      repo,
-      issue_number: issueNumber,
-      assignees: chosen,
-    });
-    console.log("Auto-assigned:", chosen.join(", "));
+    await octokit.issues.addAssignees({ owner, repo, issue_number: issueNumber, assignees: chosen });
   } catch (err) {
     console.log("Auto-assign failed:", err.message);
   }
@@ -212,12 +249,11 @@ async function main() {
     if (lower.match(/@df-bot\s+label\s+/i) && config.features.label_command) {
       const match = body.match(/@df-bot\s+label\s+([\w-]+)/i);
       if (match) {
-        const label = match[1];
         try {
-          await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [label] });
-          await comment(issueNumber, `✅ Label \`${label}\` added.`);
+          await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [match[1]] });
+          await comment(issueNumber, `✅ Label \`${match[1]}\` added.`);
         } catch {
-          await comment(issueNumber, `❌ Could not add label \`${label}\`. Does it exist in the repository?`);
+          await comment(issueNumber, `❌ Could not add label \`${match[1]}\`.`);
         }
       }
       return;
@@ -227,12 +263,11 @@ async function main() {
     if (lower.match(/@df-bot\s+unlabel\s+/i) && config.features.unlabel_command) {
       const match = body.match(/@df-bot\s+unlabel\s+([\w-]+)/i);
       if (match) {
-        const label = match[1];
         try {
-          await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: label });
-          await comment(issueNumber, `✅ Label \`${label}\` removed.`);
+          await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: match[1] });
+          await comment(issueNumber, `✅ Label \`${match[1]}\` removed.`);
         } catch {
-          await comment(issueNumber, `❌ Could not remove label \`${label}\`.`);
+          await comment(issueNumber, `❌ Could not remove label \`${match[1]}\`.`);
         }
       }
       return;
@@ -310,10 +345,9 @@ async function main() {
     if (lower.match(/@df-bot\s+title\s+/i) && config.features.title_command) {
       const match = body.match(/@df-bot\s+title\s+(.+)/i);
       if (match) {
-        const newTitle = match[1].trim();
         try {
-          await octokit.issues.update({ owner, repo, issue_number: issueNumber, title: newTitle });
-          await comment(issueNumber, `✅ Title changed to: **${newTitle}**`);
+          await octokit.issues.update({ owner, repo, issue_number: issueNumber, title: match[1].trim() });
+          await comment(issueNumber, `✅ Title changed to: **${match[1].trim()}**`);
         } catch {
           await comment(issueNumber, "❌ Could not change title.");
         }
@@ -325,28 +359,173 @@ async function main() {
     if (lower.match(/@df-bot\s+milestone\s+/i) && config.features.milestone_command) {
       const match = body.match(/@df-bot\s+milestone\s+(.+)/i);
       if (match) {
-        const milestoneName = match[1].trim();
+        const name = match[1].trim();
         try {
-          const { data: milestones } = await octokit.issues.listMilestones({
-            owner,
-            repo,
-            state: "open",
-          });
-          const milestone = milestones.find((m) => m.title.toLowerCase() === milestoneName.toLowerCase());
+          const { data: milestones } = await octokit.issues.listMilestones({ owner, repo, state: "open" });
+          const milestone = milestones.find((m) => m.title.toLowerCase() === name.toLowerCase());
           if (milestone) {
-            await octokit.issues.update({
-              owner,
-              repo,
-              issue_number: issueNumber,
-              milestone: milestone.number,
-            });
+            await octokit.issues.update({ owner, repo, issue_number: issueNumber, milestone: milestone.number });
             await comment(issueNumber, `✅ Milestone **${milestone.title}** set.`);
           } else {
-            await comment(issueNumber, `❌ Milestone "${milestoneName}" not found.`);
+            await comment(issueNumber, `❌ Milestone "${name}" not found.`);
           }
         } catch {
           await comment(issueNumber, "❌ Could not set milestone.");
         }
+      }
+      return;
+    }
+
+    // ========== COMMIT FEATURES ==========
+
+    // CREATE-FILE
+    // Usage: @df-bot create-file path/to/file.txt | file content here
+    if (lower.match(/@df-bot\s+create-file\s+/i) && config.features.create_file_command) {
+      const match = body.match(/@df-bot\s+create-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
+      if (match) {
+        const path = match[1].trim();
+        const content = match[2].trim();
+        try {
+          await createOrUpdateFile(path, content, `df-bot: create ${path}`);
+          await comment(issueNumber, `✅ File \`${path}\` created and committed.`);
+        } catch (err) {
+          await comment(issueNumber, `❌ Could not create file: ${err.message}`);
+        }
+      } else {
+        await comment(issueNumber, "❌ Usage: `@df-bot create-file path/to/file.txt | content here`");
+      }
+      return;
+    }
+
+    // UPDATE-FILE
+    // Usage: @df-bot update-file path/to/file.txt | new content
+    if (lower.match(/@df-bot\s+update-file\s+/i) && config.features.update_file_command) {
+      const match = body.match(/@df-bot\s+update-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
+      if (match) {
+        const path = match[1].trim();
+        const content = match[2].trim();
+        try {
+          await createOrUpdateFile(path, content, `df-bot: update ${path}`);
+          await comment(issueNumber, `✅ File \`${path}\` updated and committed.`);
+        } catch (err) {
+          await comment(issueNumber, `❌ Could not update file: ${err.message}`);
+        }
+      } else {
+        await comment(issueNumber, "❌ Usage: `@df-bot update-file path/to/file.txt | new content`");
+      }
+      return;
+    }
+
+    // DELETE-FILE
+    // Usage: @df-bot delete-file path/to/file.txt
+    if (lower.match(/@df-bot\s+delete-file\s+/i) && config.features.delete_file_command) {
+      const match = body.match(/@df-bot\s+delete-file\s+(.+)/i);
+      if (match) {
+        const path = match[1].trim();
+        try {
+          await deleteFile(path, `df-bot: delete ${path}`);
+          await comment(issueNumber, `✅ File \`${path}\` deleted and committed.`);
+        } catch (err) {
+          await comment(issueNumber, `❌ Could not delete file: ${err.message}`);
+        }
+      }
+      return;
+    }
+
+    // CREATE-BRANCH
+    // Usage: @df-bot create-branch feature/my-branch
+    if (lower.match(/@df-bot\s+create-branch\s+/i) && config.features.create_branch_command) {
+      const match = body.match(/@df-bot\s+create-branch\s+([\w\/.-]+)/i);
+      if (match) {
+        const branchName = match[1];
+        try {
+          const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
+          await octokit.git.createRef({
+            owner,
+            repo,
+            ref: `refs/heads/${branchName}`,
+            sha: ref.object.sha,
+          });
+          await comment(issueNumber, `✅ Branch \`${branchName}\` created.`);
+        } catch (err) {
+          await comment(issueNumber, `❌ Could not create branch: ${err.message}`);
+        }
+      }
+      return;
+    }
+
+    // CREATE-PR
+    // Usage: @df-bot create-pr My PR title
+    if (lower.match(/@df-bot\s+create-pr\s+/i) && config.features.create_pr_command) {
+      const match = body.match(/@df-bot\s+create-pr\s+(.+)/i);
+      if (match) {
+        const title = match[1].trim();
+        try {
+          // Create PR from a branch named after the issue
+          const branchName = `df-bot/issue-${issueNumber}`;
+          // Ensure branch exists
+          try {
+            const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
+            await octokit.git.createRef({
+              owner,
+              repo,
+              ref: `refs/heads/${branchName}`,
+              sha: ref.object.sha,
+            });
+          } catch {
+            // branch may already exist
+          }
+
+          const { data: pr } = await octokit.pulls.create({
+            owner,
+            repo,
+            title,
+            head: branchName,
+            base: defaultBranch,
+            body: `Created by DF-Bot from issue #${issueNumber}`,
+          });
+          await comment(issueNumber, `✅ Pull Request created: #${pr.number} – ${pr.html_url}`);
+        } catch (err) {
+          await comment(issueNumber, `❌ Could not create PR: ${err.message}`);
+        }
+      }
+      return;
+    }
+
+    // BUMP VERSION
+    // Usage: @df-bot bump patch|minor|major
+    if (lower.match(/@df-bot\s+bump\s+/i) && config.features.bump_version_command) {
+      const match = body.match(/@df-bot\s+bump\s+(patch|minor|major)/i);
+      if (match) {
+        const type = match[1].toLowerCase();
+        try {
+          const { data: file } = await octokit.repos.getContent({ owner, repo, path: "package.json" });
+          const content = Buffer.from(file.content, "base64").toString("utf8");
+          const pkg = JSON.parse(content);
+          const parts = (pkg.version || "0.0.0").split(".").map(Number);
+
+          if (type === "major") {
+            parts[0] += 1;
+            parts[1] = 0;
+            parts[2] = 0;
+          } else if (type === "minor") {
+            parts[1] += 1;
+            parts[2] = 0;
+          } else {
+            parts[2] += 1;
+          }
+
+          const newVersion = parts.join(".");
+          pkg.version = newVersion;
+          const newContent = JSON.stringify(pkg, null, 2) + "\n";
+
+          await createOrUpdateFile("package.json", newContent, `df-bot: bump version to ${newVersion}`);
+          await comment(issueNumber, `✅ Version bumped to **${newVersion}** and committed.`);
+        } catch (err) {
+          await comment(issueNumber, `❌ Could not bump version: ${err.message}`);
+        }
+      } else {
+        await comment(issueNumber, "❌ Usage: `@df-bot bump patch` or `minor` or `major`");
       }
       return;
     }
