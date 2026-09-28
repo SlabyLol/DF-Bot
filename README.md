@@ -2,28 +2,33 @@
 
 ![DF-Bot Icon](ico.png)
 
-**DF-Bot** – Voll ausgestatteter GitHub-Bot, der komplett über **GitHub Actions** läuft.
-Kein PC, kein Server, kein Hosting nötig.
+**DF-Bot** – Fully featured GitHub bot that runs completely on **GitHub Actions**.
+No PC, no server, no external hosting needed.
 
-Alles wird über die Datei `df-bot.yml` gesteuert.
+Everything is controlled by the `df-bot.yml` file.
 
 ## Features
 
-- Willkommensnachrichten für Issues & Pull Requests
-- Viele Commands per Kommentar (über GitHub Actions)
-- Auto-Labels anhand von Keywords im Titel
-- **Auto-Assign** (Round-Robin, Random oder Alle)
-- Labels hinzufügen / entfernen
-- Zuweisen / Entfernen von Assignees
-- Schließen / Wieder öffnen
-- Lock / Unlock
-- Titel ändern
-- Milestone setzen
-- Komplett konfigurierbar pro Projekt
+- Welcome messages for Issues & Pull Requests
+- Many commands via comments (executed by GitHub Actions)
+- Auto-labels based on title keywords
+- **Auto-assign** (round-robin, random, or all)
+- Add / remove labels
+- Assign / unassign users
+- Close / reopen
+- Lock / unlock comments
+- Change title
+- Set milestone
+- Fully configurable per project
 
-## Bot zu einem Projekt hinzufügen
+## How to add DF-Bot to your account / projects
 
-Kopiere diese Dateien in dein Repository:
+This bot works **per repository**. There is no single "install for whole account" button because it uses GitHub Actions.
+
+### Option 1 – Add to one repository (recommended)
+
+1. Go to the repository where you want the bot
+2. Copy these 4 files into it:
 
 ```
 .github/workflows/df-bot.yml
@@ -32,57 +37,65 @@ package.json
 df-bot.yml
 ```
 
-Danach ist der Bot sofort aktiv.
+3. Commit the files
+4. Done – the bot is now active in that repository
 
-## Alle Commands (über GitHub Actions)
+### Option 2 – Use this repository as template
 
-Schreibe einfach einen Kommentar unter ein Issue oder einen Pull Request:
+1. On GitHub open https://github.com/SlabyLol/DF-Bot
+2. Click **Use this template** → **Create a new repository**
+3. The new repository already has the bot ready
 
-| Befehl | Beschreibung |
-|--------|--------------|
-| `@df-bot help` | Zeigt alle Befehle |
-| `@df-bot label <name>` | Label hinzufügen |
-| `@df-bot unlabel <name>` | Label entfernen |
-| `@df-bot assign <user>` | jemanden zuweisen |
-| `@df-bot assign me` | dich selbst zuweisen |
-| `@df-bot unassign <user>` | Zuweisung entfernen |
-| `@df-bot unassign me` | dich selbst entfernen |
-| `@df-bot close` | Issue/PR schließen |
-| `@df-bot reopen` | wieder öffnen |
-| `@df-bot lock` | Kommentare sperren |
-| `@df-bot unlock` | Kommentare entsperren |
-| `@df-bot title <neuer Titel>` | Titel ändern |
-| `@df-bot milestone <name>` | Milestone setzen |
+### Option 3 – Add to many repositories
 
-Die Commands werden durch den GitHub Actions Workflow ausgeführt.
+Just repeat Option 1 for each repository.
+You can also automate this later with a script if needed.
 
-## Auto-Assign einstellen
+## All Commands (via GitHub Actions)
 
-In der `df-bot.yml`:
+Write a comment under any Issue or Pull Request:
+
+| Command | Description |
+|---------|-------------|
+| `@df-bot help` | Show all commands |
+| `@df-bot label <name>` | Add a label |
+| `@df-bot unlabel <name>` | Remove a label |
+| `@df-bot assign <user>` | Assign someone |
+| `@df-bot assign me` | Assign yourself |
+| `@df-bot unassign <user>` | Remove assignee |
+| `@df-bot unassign me` | Unassign yourself |
+| `@df-bot close` | Close the issue/PR |
+| `@df-bot reopen` | Reopen the issue/PR |
+| `@df-bot lock` | Lock comments |
+| `@df-bot unlock` | Unlock comments |
+| `@df-bot title <new title>` | Change the title |
+| `@df-bot milestone <name>` | Set a milestone |
+
+The commands are executed by the GitHub Actions workflow.
+
+## Auto-Assign
+
+In `df-bot.yml`:
 
 ```yaml
 auto_assign:
   enabled: true
-  strategy: round_robin   # oder "random" / "all"
+  strategy: round_robin   # or "random" / "all"
   assignees:
     - SlabyLol
-    - anderer-user
+    - other-user
   ignore_labels:
     - wip
     - draft
 ```
 
-## Icon
-
-Das Icon liegt unter `ico.png` und wird im README angezeigt.
-
-## Dateien
+## Files
 
 ```
 DF-Bot/
-├── .github/workflows/df-bot.yml   ← GitHub Actions Workflow
-├── action.js                      ← Bot-Logik
-├── df-bot.yml                     ← Konfiguration
+├── .github/workflows/df-bot.yml   ← GitHub Actions workflow
+├── action.js                      ← Bot logic
+├── df-bot.yml                     ← Configuration
 ├── ico.png                        ← Icon
 ├── package.json
 └── README.md
