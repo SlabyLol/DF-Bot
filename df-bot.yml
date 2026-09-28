@@ -25,89 +25,80 @@ features:
 # -------------------- Messages --------------------
 messages:
   issue_opened: |
-    👋 Danke für das Issue!
+    👋 Thanks for opening this issue!
 
-    Ich bin **DF-Bot** und helfe bei diesem Projekt.
-    Tippe `@df-bot help` um alle Befehle zu sehen.
+    I'm **DF-Bot** and I help manage this project.
+    Type `@df-bot help` to see all available commands.
   pull_request_opened: |
-    🚀 Danke für den Pull Request!
+    🚀 Thanks for the pull request!
 
-    **DF-Bot** schaut drüber. Bitte CI grün halten.
-    Tippe `@df-bot help` für Befehle.
+    **DF-Bot** is watching. Please keep CI green.
+    Type `@df-bot help` for commands.
 
 # -------------------- Commands --------------------
 commands:
   help:
     response: |
-      ### 🤖 DF-Bot – Alle Befehle
+      ### 🤖 DF-Bot – All Commands
 
       **Labels**
-      - `@df-bot label <name>` → Label hinzufügen
-      - `@df-bot unlabel <name>` → Label entfernen
+      - `@df-bot label <name>` → Add a label
+      - `@df-bot unlabel <name>` → Remove a label
 
-      **Zuweisung**
-      - `@df-bot assign <username>` → jemanden zuweisen
-      - `@df-bot assign me` → dich selbst zuweisen
-      - `@df-bot unassign <username>` → Zuweisung entfernen
-      - `@df-bot unassign me` → dich selbst entfernen
+      **Assignment**
+      - `@df-bot assign <username>` → Assign someone
+      - `@df-bot assign me` → Assign yourself
+      - `@df-bot unassign <username>` → Remove assignee
+      - `@df-bot unassign me` → Unassign yourself
 
       **Status**
-      - `@df-bot close` → Issue/PR schließen
-      - `@df-bot reopen` → wieder öffnen
-      - `@df-bot lock` → Kommentare sperren
-      - `@df-bot unlock` → Kommentare entsperren
+      - `@df-bot close` → Close the issue/PR
+      - `@df-bot reopen` → Reopen the issue/PR
+      - `@df-bot lock` → Lock comments
+      - `@df-bot unlock` → Unlock comments
 
-      **Sonstiges**
-      - `@df-bot title <neuer Titel>` → Titel ändern
-      - `@df-bot milestone <name>` → Milestone setzen
-      - `@df-bot help` → diese Hilfe anzeigen
+      **Other**
+      - `@df-bot title <new title>` → Change the title
+      - `@df-bot milestone <name>` → Set a milestone
+      - `@df-bot help` → Show this help
 
 # -------------------- Auto Labels --------------------
-# Wenn der Titel eines dieser Wörter enthält → Label wird gesetzt
+# When the title contains one of these words → label is added
 auto_labels:
   bug:
     - bug
     - error
     - crash
     - broken
-    - fehler
     - exception
   enhancement:
     - feature
     - enhancement
     - improvement
     - request
-    - wunsch
-    - verbesserung
   documentation:
     - docs
     - documentation
     - readme
-    - dokumentation
   question:
     - question
-    - frage
     - how
-    - warum
-    - wieso
+    - why
+    - help
   good first issue:
     - beginner
     - easy
     - first issue
-    - einsteiger
+    - good first issue
 
 # -------------------- Auto Assign --------------------
-# Automatische Zuweisung bei neuen Issues / PRs
 auto_assign:
   enabled: true
-  # Mögliche Strategien: "round_robin", "random", "all"
+  # Strategies: "round_robin", "random", "all"
   strategy: round_robin
-  # Liste der Personen, die zugewiesen werden können
   assignees:
     - SlabyLol
-  # Nur bei bestimmten Labels zuweisen (leer = immer)
   only_labels: []
-  # Bei diesen Labels NIEMALS auto-assignen
   ignore_labels:
     - wip
     - draft
@@ -115,8 +106,8 @@ auto_assign:
 # -------------------- Project Info --------------------
 project:
   name: DF-Bot
-  description: GitHub Bot für automatisierte Projektverwaltung
+  description: GitHub Bot for automated project management
   instructions: |
-    - Antworte immer auf Deutsch wenn der User Deutsch schreibt
-    - Sei kurz, klar und hilfreich
-    - Nutze Emojis sparsam aber sinnvoll
+    - Always reply in English
+    - Be short, clear and helpful
+    - Use emojis sparingly but meaningfully
