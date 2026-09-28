@@ -1,6 +1,8 @@
 # DF-Bot
 
-**DF-Bot** – Voll ausgestatteter GitHub-Bot, der komplett auf GitHub Actions läuft.
+![DF-Bot Icon](ico.png)
+
+**DF-Bot** – Voll ausgestatteter GitHub-Bot, der komplett über **GitHub Actions** läuft.
 Kein PC, kein Server, kein Hosting nötig.
 
 Alles wird über die Datei `df-bot.yml` gesteuert.
@@ -8,7 +10,7 @@ Alles wird über die Datei `df-bot.yml` gesteuert.
 ## Features
 
 - Willkommensnachrichten für Issues & Pull Requests
-- Viele Commands per Kommentar
+- Viele Commands per Kommentar (über GitHub Actions)
 - Auto-Labels anhand von Keywords im Titel
 - **Auto-Assign** (Round-Robin, Random oder Alle)
 - Labels hinzufügen / entfernen
@@ -32,7 +34,9 @@ df-bot.yml
 
 Danach ist der Bot sofort aktiv.
 
-## Alle Commands
+## Alle Commands (über GitHub Actions)
+
+Schreibe einfach einen Kommentar unter ein Issue oder einen Pull Request:
 
 | Befehl | Beschreibung |
 |--------|--------------|
@@ -49,6 +53,8 @@ Danach ist der Bot sofort aktiv.
 | `@df-bot unlock` | Kommentare entsperren |
 | `@df-bot title <neuer Titel>` | Titel ändern |
 | `@df-bot milestone <name>` | Milestone setzen |
+
+Die Commands werden durch den GitHub Actions Workflow ausgeführt.
 
 ## Auto-Assign einstellen
 
@@ -68,17 +74,16 @@ auto_assign:
 
 ## Icon
 
-Du kannst ein Icon hochladen. Da der Bot über GitHub Actions läuft, erscheinen Kommentare aktuell als `github-actions`. Ein eigenes Icon ist erst möglich, wenn wir später auf eine echte GitHub App umstellen.
-
-Lade dein Icon einfach hier im Repository hoch (z.B. als `icon.png`), dann können wir es später verwenden.
+Das Icon liegt unter `ico.png` und wird im README angezeigt.
 
 ## Dateien
 
 ```
 DF-Bot/
-├── .github/workflows/df-bot.yml
-├── action.js
-├── df-bot.yml          ← hier alles konfigurieren
+├── .github/workflows/df-bot.yml   ← GitHub Actions Workflow
+├── action.js                      ← Bot-Logik
+├── df-bot.yml                     ← Konfiguration
+├── ico.png                        ← Icon
 ├── package.json
 └── README.md
 ```
