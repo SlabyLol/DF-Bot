@@ -21,6 +21,7 @@ features:
   create_pr_command: true
   bump_version_command: true
   run_command: true
+  auto_check: true
 
 contributor_only:
   - close
@@ -41,25 +42,36 @@ contributor_only:
   - title
   - milestone
 
+auto_check:
+  enabled: true
+  on_issue_open: true
+  on_pr_open: true
+  required_files:
+    - README.md
+    - package.json
+    - df-bot.yml
+    - action.js
+
 messages:
   issue_opened: |
     👋 Thanks for opening this issue!
 
-    I'm **DF-Bot** and I help manage this project.
-    Type `@df-bot help` to see all available commands.
+    I'm **DF-B0T** and I help manage this project.
+    Type `@DF-B0T help` to see all available commands.
   pull_request_opened: |
     🚀 Thanks for the pull request!
 
-    **DF-Bot** is watching. Please keep CI green.
-    Type `@df-bot help` for commands.
+    **DF-B0T** is watching. Please keep CI green.
+    Type `@DF-B0T help` for commands.
 
 commands:
   help:
     response: |
-      ### 🤖 DF-Bot – All Commands
+      ### 🤖 DF-B0T – All Commands
 
       **Public**
-      - `@df-bot help` → Show this help
+      - `@DF-B0T help` → Show this help
+      - `@DF-B0T check` → Run file auto-check
 
       **Contributors only**
       - Labels / assign / close / lock / title / milestone
@@ -68,17 +80,7 @@ commands:
 
       **Run any command** (contributors only)
       ```
-      @df-bot run <command> /Z/ <name> /P/ file1 file2
-      ```
-      - command = shell command to execute
-      - `/Z/ name` = optional label for the run
-      - `/P/ files` = commit & push these generated files after the run
-
-      Examples:
-      ```
-      @df-bot run pip install opencomb /Z/ opencomb
-      @df-bot run opencomb --out . /P/ file.hello file.py
-      @df-bot run pip install opencomb /Z/ opencomb /P/ file.hello file.py
+      @DF-B0T run <command> /Z/ <name> /P/ file1 file2
       ```
 
 auto_labels:
