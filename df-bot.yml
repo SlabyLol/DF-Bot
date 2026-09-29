@@ -1,7 +1,3 @@
-# =====================================================
-# DF-Bot – Full Configuration
-# =====================================================
-
 features:
   welcome_issues: true
   welcome_pull_requests: true
@@ -18,7 +14,6 @@ features:
   unlock_command: true
   title_command: true
   milestone_command: true
-  # Commit features
   create_file_command: true
   update_file_command: true
   delete_file_command: true
