@@ -1,15 +1,16 @@
 import { Octokit } from "@octokit/rest";
 import fs from "fs";
 import yaml from "js-yaml";
+import { execSync } from "child_process";
 
 const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 const eventName = process.env.GITHUB_EVENT_NAME;
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
 
-const owner = event.repository.owner.login;
-const repo = event.repository.name;
-const defaultBranch = event.repository.default_branch || "main";
+const owner = event.repository?.owner?.login || event.repository?.owner?.name;
+const repo = event.repository?.name;
+const defaultBranch = event.repository?.default_branch || "main";
 
 const defaultConfig = {
   features: {
@@ -34,6 +35,30 @@ const defaultConfig = {
     create_branch_command: true,
     create_pr_command: true,
     bump_version_command: true,
+    run_command: true,
+  },
+  contributor_only: [
+    "close",
+    "reopen",
+    "lock",
+    "unlock",
+    "create-file",
+    "update-file",
+    "delete-file",
+    "create-branch",
+    "create-pr",
+    "bump",
+    "run",
+    "assign",
+    "unassign",
+    "label",
+    "unlabel",
+    "title",
+    "milestone",
+  ],
+  allowed_runs: {
+    "node-version": "node -v",
+    "npm-version": "npm -v",
   },
   messages: {
     issue_opened: "👋 Thanks for opening this issue!\n\nI'm **DF-Bot**. Type `@df-bot help` to see all commands.",
@@ -43,36 +68,21 @@ const defaultConfig = {
     help: {
       response: `### 🤖 DF-Bot – All Commands
 
-**Labels**
-- \`@df-bot label <name>\` → Add a label
-- \`@df-bot unlabel <name>\` → Remove a label
+**Public**
+- \`@df-bot help\` → Show this help
 
-**Assignment**
-- \`@df-bot assign <username>\` → Assign someone
-- \`@df-bot assign me\` → Assign yourself
-- \`@df-bot unassign <username>\` → Remove assignee
-- \`@df-bot unassign me\` → Unassign yourself
+**Contributors only**
+- Labels: \`label\`, \`unlabel\`
+- Assign: \`assign\`, \`unassign\`
+- Status: \`close\`, \`reopen\`, \`lock\`, \`unlock\`
+- Title/Milestone: \`title\`, \`milestone\`
+- Files: \`create-file\`, \`update-file\`, \`delete-file\`
+- Git: \`create-branch\`, \`create-pr\`, \`bump\`
+- Run: \`@df-bot run <name>\` (only names from allowed_runs in df-bot.yml)
 
-**Status**
-- \`@df-bot close\` → Close the issue/PR
-- \`@df-bot reopen\` → Reopen
-- \`@df-bot lock\` → Lock comments
-- \`@df-bot unlock\` → Unlock comments
-
-**Title & Milestone**
-- \`@df-bot title <new title>\` → Change title
-- \`@df-bot milestone <name>\` → Set milestone
-
-**Commits & Files**
-- \`@df-bot create-file <path> | <content>\` → Create a new file (commits)
-- \`@df-bot update-file <path> | <content>\` → Update a file (commits)
-- \`@df-bot delete-file <path>\` → Delete a file (commits)
-- \`@df-bot create-branch <name>\` → Create a new branch
-- \`@df-bot create-pr <title>\` → Create a Pull Request from current branch
-- \`@df-bot bump patch|minor|major\` → Bump version in package.json
-
-**Help**
-- \`@df-bot help\` → Show this help`,
+How to trigger without a new issue:
+1. Comment on any existing issue/PR
+2. Or: Actions → DF-Bot → Run workflow`,
     },
   },
   auto_labels: {
@@ -103,6 +113,8 @@ function loadConfig() {
         commands: { ...defaultConfig.commands, ...(userConfig.commands || {}) },
         auto_labels: userConfig.auto_labels || defaultConfig.auto_labels,
         auto_assign: { ...defaultConfig.auto_assign, ...(userConfig.auto_assign || {}) },
+        contributor_only: userConfig.contributor_only || defaultConfig.contributor_only,
+        allowed_runs: userConfig.allowed_runs || defaultConfig.allowed_runs,
       };
     }
   } catch (err) {
@@ -111,7 +123,26 @@ function loadConfig() {
   return defaultConfig;
 }
 
+async function isContributor(username) {
+  try {
+    const { data } = await octokit.repos.getCollaboratorPermissionLevel({
+      owner,
+      repo,
+      username,
+    });
+    return ["admin", "maintain", "write"].includes(data.permission);
+  } catch {
+    return false;
+  }
+}
+
+function requiresContributor(commandKey, config) {
+  const list = config.contributor_only || [];
+  return list.includes(commandKey);
+}
+
 async function comment(issueNumber, body) {
+  if (!issueNumber) return;
   await octokit.issues.createComment({ owner, repo, issue_number: issueNumber, body });
 }
 
@@ -142,14 +173,7 @@ async function createOrUpdateFile(path, content, message, branch = defaultBranch
 async function deleteFile(path, message, branch = defaultBranch) {
   const sha = await getFileSha(path, branch);
   if (!sha) throw new Error("File not found");
-  await octokit.repos.deleteFile({
-    owner,
-    repo,
-    path,
-    message,
-    sha,
-    branch,
-  });
+  await octokit.repos.deleteFile({ owner, repo, path, message, sha, branch });
 }
 
 async function addAutoLabels(issueNumber, title, config) {
@@ -188,9 +212,24 @@ async function doAutoAssign(issueNumber, existingLabels, config) {
   }
 }
 
+async function guard(commandKey, sender, issueNumber, config) {
+  if (!requiresContributor(commandKey, config)) return true;
+  const ok = await isContributor(sender);
+  if (!ok) {
+    await comment(issueNumber, "❌ This command is only available for repository collaborators (write access or higher).");
+    return false;
+  }
+  return true;
+}
+
 async function main() {
   const config = loadConfig();
   console.log("Event:", eventName);
+
+  if (eventName === "workflow_dispatch") {
+    console.log("Manual run – no issue context. Use issue comments for bot commands.");
+    return;
+  }
 
   if (eventName === "issues" && event.action === "opened") {
     const issueNumber = event.issue.number;
@@ -231,7 +270,38 @@ async function main() {
       return;
     }
 
+    if (lower.match(/@df-bot\s+run\s+/i) && config.features.run_command) {
+      if (!(await guard("run", sender, issueNumber, config))) return;
+      const match = body.match(/@df-bot\s+run\s+([\w.-]+)/i);
+      if (!match) {
+        const names = Object.keys(config.allowed_runs || {}).join(", ") || "(none configured)";
+        await comment(issueNumber, `❌ Usage: \`@df-bot run <name>\`\nAllowed: ${names}`);
+        return;
+      }
+      const runName = match[1];
+      const cmd = config.allowed_runs?.[runName];
+      if (!cmd) {
+        const names = Object.keys(config.allowed_runs || {}).join(", ") || "(none)";
+        await comment(issueNumber, `❌ Unknown run \`${runName}\`. Allowed: ${names}`);
+        return;
+      }
+      try {
+        const output = execSync(String(cmd), {
+          encoding: "utf8",
+          timeout: 60000,
+          shell: true,
+        });
+        const trimmed = (output || "").trim().slice(0, 3500) || "(no output)";
+        await comment(issueNumber, `✅ Run \`${runName}\` finished.\n\n\`\`\`\n${trimmed}\n\`\`\``);
+      } catch (err) {
+        const msg = (err.stdout || err.stderr || err.message || "").toString().slice(0, 3500);
+        await comment(issueNumber, `❌ Run \`${runName}\` failed.\n\n\`\`\`\n${msg}\n\`\`\``);
+      }
+      return;
+    }
+
     if (lower.match(/@df-bot\s+label\s+/i) && config.features.label_command) {
+      if (!(await guard("label", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+label\s+([\w-]+)/i);
       if (match) {
         try {
@@ -245,6 +315,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+unlabel\s+/i) && config.features.unlabel_command) {
+      if (!(await guard("unlabel", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+unlabel\s+([\w-]+)/i);
       if (match) {
         try {
@@ -258,6 +329,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+assign\s+/i) && config.features.assign_command) {
+      if (!(await guard("assign", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+assign\s+(@?[\w-]+)/i);
       if (match) {
         let user = match[1].replace("@", "");
@@ -273,6 +345,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+unassign\s+/i) && config.features.unassign_command) {
+      if (!(await guard("unassign", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+unassign\s+(@?[\w-]+)/i);
       if (match) {
         let user = match[1].replace("@", "");
@@ -288,18 +361,21 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+close\b/i) && config.features.close_command) {
+      if (!(await guard("close", sender, issueNumber, config))) return;
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "closed" });
       await comment(issueNumber, "✅ Closed.");
       return;
     }
 
     if (lower.match(/@df-bot\s+reopen\b/i) && config.features.reopen_command) {
+      if (!(await guard("reopen", sender, issueNumber, config))) return;
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "open" });
       await comment(issueNumber, "✅ Reopened.");
       return;
     }
 
     if (lower.match(/@df-bot\s+lock\b/i) && config.features.lock_command) {
+      if (!(await guard("lock", sender, issueNumber, config))) return;
       try {
         await octokit.issues.lock({ owner, repo, issue_number: issueNumber });
         await comment(issueNumber, "🔒 Comments locked.");
@@ -310,6 +386,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+unlock\b/i) && config.features.unlock_command) {
+      if (!(await guard("unlock", sender, issueNumber, config))) return;
       try {
         await octokit.issues.unlock({ owner, repo, issue_number: issueNumber });
         await comment(issueNumber, "🔓 Comments unlocked.");
@@ -320,6 +397,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+title\s+/i) && config.features.title_command) {
+      if (!(await guard("title", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+title\s+(.+)/i);
       if (match) {
         try {
@@ -333,6 +411,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+milestone\s+/i) && config.features.milestone_command) {
+      if (!(await guard("milestone", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+milestone\s+(.+)/i);
       if (match) {
         const name = match[1].trim();
@@ -353,13 +432,12 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+create-file\s+/i) && config.features.create_file_command) {
+      if (!(await guard("create-file", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+create-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
-        const path = match[1].trim();
-        const content = match[2].trim();
         try {
-          await createOrUpdateFile(path, content, `df-bot: create ${path}`);
-          await comment(issueNumber, `✅ File \`${path}\` created and committed.`);
+          await createOrUpdateFile(match[1].trim(), match[2].trim(), `df-bot: create ${match[1].trim()}`);
+          await comment(issueNumber, `✅ File \`${match[1].trim()}\` created and committed.`);
         } catch (err) {
           await comment(issueNumber, `❌ Could not create file: ${err.message}`);
         }
@@ -370,13 +448,12 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+update-file\s+/i) && config.features.update_file_command) {
+      if (!(await guard("update-file", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+update-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
-        const path = match[1].trim();
-        const content = match[2].trim();
         try {
-          await createOrUpdateFile(path, content, `df-bot: update ${path}`);
-          await comment(issueNumber, `✅ File \`${path}\` updated and committed.`);
+          await createOrUpdateFile(match[1].trim(), match[2].trim(), `df-bot: update ${match[1].trim()}`);
+          await comment(issueNumber, `✅ File \`${match[1].trim()}\` updated and committed.`);
         } catch (err) {
           await comment(issueNumber, `❌ Could not update file: ${err.message}`);
         }
@@ -387,12 +464,12 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+delete-file\s+/i) && config.features.delete_file_command) {
+      if (!(await guard("delete-file", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+delete-file\s+(.+)/i);
       if (match) {
-        const path = match[1].trim();
         try {
-          await deleteFile(path, `df-bot: delete ${path}`);
-          await comment(issueNumber, `✅ File \`${path}\` deleted and committed.`);
+          await deleteFile(match[1].trim(), `df-bot: delete ${match[1].trim()}`);
+          await comment(issueNumber, `✅ File \`${match[1].trim()}\` deleted and committed.`);
         } catch (err) {
           await comment(issueNumber, `❌ Could not delete file: ${err.message}`);
         }
@@ -401,18 +478,13 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+create-branch\s+/i) && config.features.create_branch_command) {
+      if (!(await guard("create-branch", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+create-branch\s+([\w\/.-]+)/i);
       if (match) {
-        const branchName = match[1];
         try {
           const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
-          await octokit.git.createRef({
-            owner,
-            repo,
-            ref: `refs/heads/${branchName}`,
-            sha: ref.object.sha,
-          });
-          await comment(issueNumber, `✅ Branch \`${branchName}\` created.`);
+          await octokit.git.createRef({ owner, repo, ref: `refs/heads/${match[1]}`, sha: ref.object.sha });
+          await comment(issueNumber, `✅ Branch \`${match[1]}\` created.`);
         } catch (err) {
           await comment(issueNumber, `❌ Could not create branch: ${err.message}`);
         }
@@ -421,25 +493,19 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+create-pr\s+/i) && config.features.create_pr_command) {
+      if (!(await guard("create-pr", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+create-pr\s+(.+)/i);
       if (match) {
-        const title = match[1].trim();
         try {
           const branchName = `df-bot/issue-${issueNumber}`;
           try {
             const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
-            await octokit.git.createRef({
-              owner,
-              repo,
-              ref: `refs/heads/${branchName}`,
-              sha: ref.object.sha,
-            });
+            await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: ref.object.sha });
           } catch {}
-
           const { data: pr } = await octokit.pulls.create({
             owner,
             repo,
-            title,
+            title: match[1].trim(),
             head: branchName,
             base: defaultBranch,
             body: `Created by DF-Bot from issue #${issueNumber}`,
@@ -453,6 +519,7 @@ async function main() {
     }
 
     if (lower.match(/@df-bot\s+bump\s+/i) && config.features.bump_version_command) {
+      if (!(await guard("bump", sender, issueNumber, config))) return;
       const match = body.match(/@df-bot\s+bump\s+(patch|minor|major)/i);
       if (match) {
         const type = match[1].toLowerCase();
@@ -461,7 +528,6 @@ async function main() {
           const content = Buffer.from(file.content, "base64").toString("utf8");
           const pkg = JSON.parse(content);
           const parts = (pkg.version || "0.0.0").split(".").map(Number);
-
           if (type === "major") {
             parts[0] += 1;
             parts[1] = 0;
@@ -472,12 +538,9 @@ async function main() {
           } else {
             parts[2] += 1;
           }
-
           const newVersion = parts.join(".");
           pkg.version = newVersion;
-          const newContent = JSON.stringify(pkg, null, 2) + "\n";
-
-          await createOrUpdateFile("package.json", newContent, `df-bot: bump version to ${newVersion}`);
+          await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", `df-bot: bump version to ${newVersion}`);
           await comment(issueNumber, `✅ Version bumped to **${newVersion}** and committed.`);
         } catch (err) {
           await comment(issueNumber, `❌ Could not bump version: ${err.message}`);
