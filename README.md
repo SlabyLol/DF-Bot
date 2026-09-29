@@ -2,93 +2,71 @@
 
 ![DF-Bot Icon](ico.png)
 
-**DF-Bot** – Fully featured GitHub bot that runs completely on **GitHub Actions**.
-No PC, no server needed.
+**DF-Bot** runs on GitHub Actions and can appear as **DF-Bot[bot]** when configured as a GitHub App.
 
-It can manage issues, labels, assignees **and also create commits, files, branches and pull requests**.
+## Appear as DF-Bot[bot] (required steps)
 
-## Features
+Without a GitHub App, comments show as `github-actions[bot]`.
+With a GitHub App, they show as **DF-Bot[bot]**.
 
-- Welcome messages for Issues & Pull Requests
-- Labels, assign, close, lock, title, milestone
-- **Create / update / delete files** (with automatic commit)
-- **Create branches**
-- **Create Pull Requests**
-- **Bump version** in package.json
-- Auto-labels & Auto-assign
-- Fully configurable via `df-bot.yml`
+### 1. Create the GitHub App
 
-## How to add DF-Bot to a repository
+1. Open: https://github.com/settings/apps/new
+2. Fill in:
+   - **GitHub App name:** `DF-Bot` (must be unique; if taken try `DF-Bot-YourName`)
+   - **Homepage URL:** `https://github.com/SlabyLol/DF-Bot`
+   - **Webhook:** uncheck "Active" (not needed for Actions mode)
+3. **Permissions → Repository permissions:**
+   - Contents: **Read and write**
+   - Issues: **Read and write**
+   - Pull requests: **Read and write**
+   - Metadata: Read-only
+4. Click **Create GitHub App**
+5. Note the **App ID**
+6. Scroll to **Private keys** → **Generate a private key** → download the `.pem` file
+7. Click **Install App** → install on your account / the DF-Bot repository
 
-Copy these 4 files into your repository:
+### 2. Add secrets to the repository
 
+Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+
+| Secret name   | Value                                      |
+|---------------|--------------------------------------------|
+| `APP_ID`      | the App ID number                          |
+| `PRIVATE_KEY` | full contents of the `.pem` file           |
+
+Paste the entire private key including:
 ```
-.github/workflows/df-bot.yml
-action.js
-package.json
-df-bot.yml
-```
-
-Commit them → the bot is immediately active.
-
-Or use this repository as a template.
-
-## All Commands
-
-### Labels & Assignment
-| Command | Description |
-|---------|-------------|
-| `@df-bot label <name>` | Add a label |
-| `@df-bot unlabel <name>` | Remove a label |
-| `@df-bot assign <user>` | Assign someone |
-| `@df-bot assign me` | Assign yourself |
-| `@df-bot unassign <user>` | Unassign |
-| `@df-bot unassign me` | Unassign yourself |
-
-### Status
-| Command | Description |
-|---------|-------------|
-| `@df-bot close` | Close issue/PR |
-| `@df-bot reopen` | Reopen |
-| `@df-bot lock` | Lock comments |
-| `@df-bot unlock` | Unlock comments |
-| `@df-bot title <new title>` | Change title |
-| `@df-bot milestone <name>` | Set milestone |
-
-### Commits & Files
-| Command | Description |
-|---------|-------------|
-| `@df-bot create-file path/file.txt \| content here` | Create file + commit |
-| `@df-bot update-file path/file.txt \| new content` | Update file + commit |
-| `@df-bot delete-file path/file.txt` | Delete file + commit |
-| `@df-bot create-branch feature/name` | Create a new branch |
-| `@df-bot create-pr My PR title` | Create a Pull Request |
-| `@df-bot bump patch` | Bump version (patch/minor/major) |
-
-### Help
-| Command | Description |
-|---------|-------------|
-| `@df-bot help` | Show all commands |
-
-## Examples
-
-```
-@df-bot create-file docs/hello.md | # Hello World
-This is a new file created by DF-Bot.
+-----BEGIN RSA PRIVATE KEY-----
+...
+-----END RSA PRIVATE KEY-----
 ```
 
-```
-@df-bot update-file README.md | # New README content
-```
+### 3. Done
+
+Next time the workflow runs, comments and API actions use **DF-Bot[bot]**.
+
+If `APP_ID` / `PRIVATE_KEY` are missing, it falls back to `github-actions[bot]`.
+
+## Commands
+
+Comment on an issue or PR:
 
 ```
-@df-bot bump minor
+@df-bot help
+@df-bot label bug
+@df-bot assign me
+@df-bot close
+@df-bot run pip install opencomb /Z/ opencomb
+@df-bot run opencomb --out . /P/ file.hello file.py
 ```
 
-```
-@df-bot create-branch feature/new-login
-@df-bot create-pr Add new login feature
-```
+Sensitive commands are **contributors only** (write access or higher).
+
+## Run without a new issue
+
+1. Comment on any existing issue/PR, or
+2. **Actions** → **DF-Bot** → **Run workflow**
 
 ## License
 
