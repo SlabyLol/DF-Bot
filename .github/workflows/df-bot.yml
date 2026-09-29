@@ -1,4 +1,4 @@
-name: DF-Bot
+name: DF-Bot Start
 
 on:
   issues:
