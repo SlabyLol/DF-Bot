@@ -8,6 +8,11 @@ on:
   pull_request:
     types: [opened, reopened]
   workflow_dispatch:
+    inputs:
+      command:
+        description: "Optional note (bot mainly reacts to issue comments)"
+        required: false
+        default: "manual"
 
 permissions:
   issues: write
