@@ -1,9 +1,8 @@
 import { Octokit } from "@octokit/rest";
+import { createAppAuth } from "@octokit/auth-app";
 import fs from "fs";
 import yaml from "js-yaml";
 import { execSync } from "child_process";
-
-const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
 const eventName = process.env.GITHUB_EVENT_NAME;
 const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"));
@@ -11,6 +10,44 @@ const event = JSON.parse(fs.readFileSync(process.env.GITHUB_EVENT_PATH, "utf8"))
 const owner = event.repository?.owner?.login || event.repository?.owner?.name;
 const repo = event.repository?.name;
 const defaultBranch = event.repository?.default_branch || "main";
+
+let octokit;
+
+async function createOctokitClient() {
+  const appId = process.env.APP_ID;
+  let privateKey = process.env.PRIVATE_KEY;
+
+  if (appId && privateKey) {
+    privateKey = privateKey.replace(/\\n/g, "\n");
+
+    const appOctokit = new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId,
+        privateKey,
+      },
+    });
+
+    const { data: installation } = await appOctokit.rest.apps.getRepoInstallation({
+      owner,
+      repo,
+    });
+
+    console.log("Using GitHub App auth as DF-Bot[bot], installation:", installation.id);
+
+    return new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId,
+        privateKey,
+        installationId: installation.id,
+      },
+    });
+  }
+
+  console.log("APP_ID/PRIVATE_KEY not set – falling back to github-actions[bot]");
+  return new Octokit({ auth: process.env.GITHUB_TOKEN });
+}
 
 const defaultConfig = {
   features: {
@@ -256,6 +293,8 @@ function pushGeneratedFiles(files, zone) {
 }
 
 async function main() {
+  octokit = await createOctokitClient();
+
   const config = loadConfig();
   console.log("Event:", eventName);
 
