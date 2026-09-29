@@ -203,7 +203,6 @@ function parseRunCommand(body) {
 
   let zone = null;
   let files = [];
-  let cmdPart = afterRun;
 
   const zIdx = afterRun.search(/\s\/Z\/\s/i);
   const pIdx = afterRun.search(/\s\/P\/\s/i);
@@ -217,7 +216,7 @@ function parseRunCommand(body) {
     return { command: afterRun.trim(), zone: null, files: [] };
   }
 
-  cmdPart = afterRun.slice(0, markers[0].idx).trim();
+  const cmdPart = afterRun.slice(0, markers[0].idx).trim();
 
   for (let i = 0; i < markers.length; i++) {
     const start = markers[i].idx;
@@ -237,14 +236,19 @@ function pushGeneratedFiles(files, zone) {
   }
 
   try {
-    execSync('git config user.name "DF-Bot"');
-    execSync('git config user.email "df-bot[bot]@users.noreply.github.com"');
+    execSync("git config user.name DF-Bot");
+    execSync("git config user.email df-bot[bot]@users.noreply.github.com");
     for (const f of existing) {
-      execSync(`git add -- "${f.replace(/"/g, "\\"")}"`);
+      execSync("git add -- " + JSON.stringify(f));
     }
-    const msg = zone ? `df-bot: run ${zone} – push generated files` : "df-bot: push generated files";
-    execSync(`git commit -m "${msg.replace(/"/g, "\\"")}" || true`);
-    execSync(`git push origin HEAD:${defaultBranch}`);
+    const msg = zone
+      ? "df-bot: run " + zone + " - push generated files"
+      : "df-bot: push generated files";
+    try {
+      execSync("git commit -m " + JSON.stringify(msg));
+    } catch {
+    }
+    execSync("git push origin HEAD:" + defaultBranch);
     return { ok: true, files: existing };
   } catch (err) {
     return { ok: false, message: (err.stderr || err.message || String(err)).toString().slice(0, 1500) };
@@ -303,7 +307,7 @@ async function main() {
         return;
       }
 
-      const label = parsed.zone ? ` (${parsed.zone})` : "";
+      const label = parsed.zone ? " (" + parsed.zone + ")" : "";
       try {
         const output = execSync(parsed.command, {
           encoding: "utf8",
@@ -317,19 +321,22 @@ async function main() {
         if (parsed.files.length > 0) {
           const result = pushGeneratedFiles(parsed.files, parsed.zone);
           if (result.ok) {
-            pushNote = `\n\n📦 Pushed files: ${result.files.map((f) => "`" + f + "`").join(", ")}`;
+            pushNote = "\n\n📦 Pushed files: " + result.files.map((f) => "`" + f + "`").join(", ");
           } else {
-            pushNote = `\n\n⚠️ Push failed: ${result.message}`;
+            pushNote = "\n\n⚠️ Push failed: " + result.message;
           }
         }
 
         await comment(
           issueNumber,
-          `✅ Run${label} finished.\n\n**Command:** \`${parsed.command}\`\n\n\`\`\`\n${trimmed}\n\`\`\`${pushNote}`
+          "✅ Run" + label + " finished.\n\n**Command:** `" + parsed.command + "`\n\n```\n" + trimmed + "\n```" + pushNote
         );
       } catch (err) {
         const msg = (err.stdout || err.stderr || err.message || "").toString().slice(0, 3000);
-        await comment(issueNumber, `❌ Run${label} failed.\n\n**Command:** \`${parsed.command}\`\n\n\`\`\`\n${msg}\n\`\`\``);
+        await comment(
+          issueNumber,
+          "❌ Run" + label + " failed.\n\n**Command:** `" + parsed.command + "`\n\n```\n" + msg + "\n```"
+        );
       }
       return;
     }
@@ -340,9 +347,9 @@ async function main() {
       if (match) {
         try {
           await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [match[1]] });
-          await comment(issueNumber, `✅ Label \`${match[1]}\` added.`);
+          await comment(issueNumber, "✅ Label `" + match[1] + "` added.");
         } catch {
-          await comment(issueNumber, `❌ Could not add label \`${match[1]}\`.`);
+          await comment(issueNumber, "❌ Could not add label `" + match[1] + "`.");
         }
       }
       return;
@@ -354,9 +361,9 @@ async function main() {
       if (match) {
         try {
           await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: match[1] });
-          await comment(issueNumber, `✅ Label \`${match[1]}\` removed.`);
+          await comment(issueNumber, "✅ Label `" + match[1] + "` removed.");
         } catch {
-          await comment(issueNumber, `❌ Could not remove label \`${match[1]}\`.`);
+          await comment(issueNumber, "❌ Could not remove label `" + match[1] + "`.");
         }
       }
       return;
@@ -370,9 +377,9 @@ async function main() {
         if (user.toLowerCase() === "me") user = sender;
         try {
           await octokit.issues.addAssignees({ owner, repo, issue_number: issueNumber, assignees: [user] });
-          await comment(issueNumber, `✅ Assigned @${user}.`);
+          await comment(issueNumber, "✅ Assigned @" + user + ".");
         } catch {
-          await comment(issueNumber, `❌ Could not assign @${user}.`);
+          await comment(issueNumber, "❌ Could not assign @" + user + ".");
         }
       }
       return;
@@ -386,9 +393,9 @@ async function main() {
         if (user.toLowerCase() === "me") user = sender;
         try {
           await octokit.issues.removeAssignees({ owner, repo, issue_number: issueNumber, assignees: [user] });
-          await comment(issueNumber, `✅ Unassigned @${user}.`);
+          await comment(issueNumber, "✅ Unassigned @" + user + ".");
         } catch {
-          await comment(issueNumber, `❌ Could not unassign @${user}.`);
+          await comment(issueNumber, "❌ Could not unassign @" + user + ".");
         }
       }
       return;
@@ -436,7 +443,7 @@ async function main() {
       if (match) {
         try {
           await octokit.issues.update({ owner, repo, issue_number: issueNumber, title: match[1].trim() });
-          await comment(issueNumber, `✅ Title changed to: **${match[1].trim()}**`);
+          await comment(issueNumber, "✅ Title changed to: **" + match[1].trim() + "**");
         } catch {
           await comment(issueNumber, "❌ Could not change title.");
         }
@@ -454,9 +461,9 @@ async function main() {
           const milestone = milestones.find((m) => m.title.toLowerCase() === name.toLowerCase());
           if (milestone) {
             await octokit.issues.update({ owner, repo, issue_number: issueNumber, milestone: milestone.number });
-            await comment(issueNumber, `✅ Milestone **${milestone.title}** set.`);
+            await comment(issueNumber, "✅ Milestone **" + milestone.title + "** set.");
           } else {
-            await comment(issueNumber, `❌ Milestone "${name}" not found.`);
+            await comment(issueNumber, "❌ Milestone \"" + name + "\" not found.");
           }
         } catch {
           await comment(issueNumber, "❌ Could not set milestone.");
@@ -470,10 +477,10 @@ async function main() {
       const match = body.match(/@df-bot\s+create-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
         try {
-          await createOrUpdateFile(match[1].trim(), match[2].trim(), `df-bot: create ${match[1].trim()}`);
-          await comment(issueNumber, `✅ File \`${match[1].trim()}\` created and committed.`);
+          await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-bot: create " + match[1].trim());
+          await comment(issueNumber, "✅ File `" + match[1].trim() + "` created and committed.");
         } catch (err) {
-          await comment(issueNumber, `❌ Could not create file: ${err.message}`);
+          await comment(issueNumber, "❌ Could not create file: " + err.message);
         }
       } else {
         await comment(issueNumber, "❌ Usage: `@df-bot create-file path/to/file.txt | content here`");
@@ -486,10 +493,10 @@ async function main() {
       const match = body.match(/@df-bot\s+update-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
         try {
-          await createOrUpdateFile(match[1].trim(), match[2].trim(), `df-bot: update ${match[1].trim()}`);
-          await comment(issueNumber, `✅ File \`${match[1].trim()}\` updated and committed.`);
+          await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-bot: update " + match[1].trim());
+          await comment(issueNumber, "✅ File `" + match[1].trim() + "` updated and committed.");
         } catch (err) {
-          await comment(issueNumber, `❌ Could not update file: ${err.message}`);
+          await comment(issueNumber, "❌ Could not update file: " + err.message);
         }
       } else {
         await comment(issueNumber, "❌ Usage: `@df-bot update-file path/to/file.txt | new content`");
@@ -502,10 +509,10 @@ async function main() {
       const match = body.match(/@df-bot\s+delete-file\s+(.+)/i);
       if (match) {
         try {
-          await deleteFile(match[1].trim(), `df-bot: delete ${match[1].trim()}`);
-          await comment(issueNumber, `✅ File \`${match[1].trim()}\` deleted and committed.`);
+          await deleteFile(match[1].trim(), "df-bot: delete " + match[1].trim());
+          await comment(issueNumber, "✅ File `" + match[1].trim() + "` deleted and committed.");
         } catch (err) {
-          await comment(issueNumber, `❌ Could not delete file: ${err.message}`);
+          await comment(issueNumber, "❌ Could not delete file: " + err.message);
         }
       }
       return;
@@ -516,11 +523,11 @@ async function main() {
       const match = body.match(/@df-bot\s+create-branch\s+([\w\/.-]+)/i);
       if (match) {
         try {
-          const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
-          await octokit.git.createRef({ owner, repo, ref: `refs/heads/${match[1]}`, sha: ref.object.sha });
-          await comment(issueNumber, `✅ Branch \`${match[1]}\` created.`);
+          const { data: ref } = await octokit.git.getRef({ owner, repo, ref: "heads/" + defaultBranch });
+          await octokit.git.createRef({ owner, repo, ref: "refs/heads/" + match[1], sha: ref.object.sha });
+          await comment(issueNumber, "✅ Branch `" + match[1] + "` created.");
         } catch (err) {
-          await comment(issueNumber, `❌ Could not create branch: ${err.message}`);
+          await comment(issueNumber, "❌ Could not create branch: " + err.message);
         }
       }
       return;
@@ -531,21 +538,21 @@ async function main() {
       const match = body.match(/@df-bot\s+create-pr\s+(.+)/i);
       if (match) {
         try {
-          const branchName = `df-bot/issue-${issueNumber}`;
+          const branchName = "df-bot/issue-" + issueNumber;
           try {
-            const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
-            await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: ref.object.sha });
+            const { data: ref } = await octokit.git.getRef({ owner, repo, ref: "heads/" + defaultBranch });
+            await octokit.git.createRef({ owner, repo, ref: "refs/heads/" + branchName, sha: ref.object.sha });
           } catch {}
           const { data: pr } = await octokit.pulls.create({
             owner, repo,
             title: match[1].trim(),
             head: branchName,
             base: defaultBranch,
-            body: `Created by DF-Bot from issue #${issueNumber}`,
+            body: "Created by DF-Bot from issue #" + issueNumber,
           });
-          await comment(issueNumber, `✅ Pull Request created: #${pr.number} – ${pr.html_url}`);
+          await comment(issueNumber, "✅ Pull Request created: #" + pr.number + " – " + pr.html_url);
         } catch (err) {
-          await comment(issueNumber, `❌ Could not create PR: ${err.message}`);
+          await comment(issueNumber, "❌ Could not create PR: " + err.message);
         }
       }
       return;
@@ -566,10 +573,10 @@ async function main() {
           else { parts[2] += 1; }
           const newVersion = parts.join(".");
           pkg.version = newVersion;
-          await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", `df-bot: bump version to ${newVersion}`);
-          await comment(issueNumber, `✅ Version bumped to **${newVersion}** and committed.`);
+          await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", "df-bot: bump version to " + newVersion);
+          await comment(issueNumber, "✅ Version bumped to **" + newVersion + "** and committed.");
         } catch (err) {
-          await comment(issueNumber, `❌ Could not bump version: ${err.message}`);
+          await comment(issueNumber, "❌ Could not bump version: " + err.message);
         }
       } else {
         await comment(issueNumber, "❌ Usage: `@df-bot bump patch` or `minor` or `major`");
