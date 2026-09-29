@@ -22,6 +22,7 @@ features:
   bump_version_command: true
   run_command: true
   auto_check: true
+  commit_command: true
 
 contributor_only:
   - close
@@ -35,6 +36,7 @@ contributor_only:
   - create-pr
   - bump
   - run
+  - commit
   - assign
   - unassign
   - label
@@ -74,6 +76,8 @@ commands:
       - `@DF-B0T check` → Run file auto-check
 
       **Contributors only**
+      - `@DF-B0T commit <message>` → Commit & push all changes
+      - `@DF-B0T commit <message> /P/ file1 file2` → Commit specific files
       - Labels / assign / close / lock / title / milestone
       - Files: create-file, update-file, delete-file
       - Git: create-branch, create-pr, bump
