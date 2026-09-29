@@ -27,22 +27,17 @@ async function createOctokitClient() {
 
   if (appId && privateKey) {
     privateKey = privateKey.replace(/\\n/g, "\n");
-
     const appOctokit = new Octokit({
       authStrategy: createAppAuth,
       auth: { appId, privateKey },
     });
-
     const { data: installation } = await appOctokit.rest.apps.getRepoInstallation({ owner, repo });
-
     console.log("Using GitHub App auth as DF-B0T[bot], installation:", installation.id);
-
     return new Octokit({
       authStrategy: createAppAuth,
       auth: { appId, privateKey, installationId: installation.id },
     });
   }
-
   console.log("APP_ID/PRIVATE_KEY not set – falling back to github-actions[bot]");
   return new Octokit({ auth: process.env.GITHUB_TOKEN });
 }
@@ -72,10 +67,11 @@ const defaultConfig = {
     bump_version_command: true,
     run_command: true,
     auto_check: true,
+    commit_command: true,
   },
   contributor_only: [
     "close", "reopen", "lock", "unlock", "create-file", "update-file", "delete-file",
-    "create-branch", "create-pr", "bump", "run", "assign", "unassign", "label",
+    "create-branch", "create-pr", "bump", "run", "commit", "assign", "unassign", "label",
     "unlabel", "title", "milestone",
   ],
   messages: {
@@ -84,7 +80,7 @@ const defaultConfig = {
   },
   commands: {
     help: {
-      response: `### 🤖 DF-B0T – All Commands\n\n**Public**\n- \`@DF-B0T help\` → Show this help\n- \`@DF-B0T check\` → Run file auto-check\n\n**Contributors only**\n- Labels / assign / close / lock / title / milestone\n- Files: create-file, update-file, delete-file\n- Git: create-branch, create-pr, bump\n\n**Run any command** (contributors only)\n\`\`\`\n@DF-B0T run <command> /Z/ <name> /P/ file1 file2\n\`\`\``,
+      response: `### 🤖 DF-B0T – All Commands\n\n**Public**\n- \`@DF-B0T help\` → Show this help\n- \`@DF-B0T check\` → Run file auto-check\n\n**Contributors only**\n- \`@DF-B0T commit <message>\` → Commit & push all changes\n- \`@DF-B0T commit <message> /P/ file1 file2\` → Commit specific files\n- Labels / assign / close / lock / title / milestone\n- Files: create-file, update-file, delete-file\n- Git: create-branch, create-pr, bump\n\n**Run**\n\`\`\`\n@DF-B0T run <command> /Z/ <name> /P/ file1 file2\n\`\`\``,
     },
   },
   auto_labels: {
@@ -216,7 +212,6 @@ async function runAutoCheck(issueNumber, config, ref) {
     await comment(issueNumber, "📁 Auto-check: no `required_files` configured in df-bot.yml.");
     return;
   }
-
   const present = [];
   const missing = [];
   for (const filePath of files) {
@@ -224,16 +219,10 @@ async function runAutoCheck(issueNumber, config, ref) {
     if (sha) present.push(filePath);
     else missing.push(filePath);
   }
-
   let body = "### 📁 Auto-check files\n\n";
-  if (present.length) {
-    body += "**Found:**\n" + present.map((f) => "- ✅ `" + f + "`").join("\n") + "\n\n";
-  }
-  if (missing.length) {
-    body += "**Missing:**\n" + missing.map((f) => "- ❌ `" + f + "`").join("\n") + "\n";
-  } else {
-    body += "All required files are present.";
-  }
+  if (present.length) body += "**Found:**\n" + present.map((f) => "- ✅ `" + f + "`").join("\n") + "\n\n";
+  if (missing.length) body += "**Missing:**\n" + missing.map((f) => "- ❌ `" + f + "`").join("\n") + "\n";
+  else body += "All required files are present.";
   await comment(issueNumber, body);
 }
 
@@ -247,27 +236,41 @@ async function guard(commandKey, sender, issueNumber, config) {
   return true;
 }
 
+function doCommit(message, files) {
+  try {
+    execSync("git config user.name DF-B0T");
+    execSync("git config user.email df-b0t[bot]@users.noreply.github.com");
+    if (files && files.length > 0) {
+      const existing = files.filter((f) => fs.existsSync(f));
+      if (existing.length === 0) return { ok: false, message: "None of the listed files exist on disk." };
+      for (const f of existing) execSync("git add -- " + JSON.stringify(f));
+      files = existing;
+    } else {
+      execSync("git add -A");
+    }
+    const status = execSync("git status --porcelain", { encoding: "utf8" }).trim();
+    if (!status) return { ok: false, message: "Nothing to commit (working tree clean)." };
+    execSync("git commit -m " + JSON.stringify(message));
+    execSync("git push origin HEAD:" + defaultBranch);
+    return { ok: true, files: files || [], message };
+  } catch (err) {
+    return { ok: false, message: (err.stderr || err.message || String(err)).toString().slice(0, 1500) };
+  }
+}
+
 function parseRunCommand(body) {
   const afterRun = body.replace(/^.*?(?:@df-bot|@df-b0t)\s+run\s+/i, "").trim();
   if (!afterRun) return null;
-
   let zone = null;
   let files = [];
-
   const zIdx = afterRun.search(/\s\/Z\/\s/i);
   const pIdx = afterRun.search(/\s\/P\/\s/i);
-
   const markers = [];
   if (zIdx >= 0) markers.push({ type: "Z", idx: zIdx });
   if (pIdx >= 0) markers.push({ type: "P", idx: pIdx });
   markers.sort((a, b) => a.idx - b.idx);
-
-  if (markers.length === 0) {
-    return { command: afterRun.trim(), zone: null, files: [] };
-  }
-
+  if (markers.length === 0) return { command: afterRun.trim(), zone: null, files: [] };
   const cmdPart = afterRun.slice(0, markers[0].idx).trim();
-
   for (let i = 0; i < markers.length; i++) {
     const start = markers[i].idx;
     const end = i + 1 < markers.length ? markers[i + 1].idx : afterRun.length;
@@ -275,28 +278,18 @@ function parseRunCommand(body) {
     if (markers[i].type === "Z") zone = segment.split(/\s+/)[0] || segment;
     if (markers[i].type === "P") files = segment.split(/\s+/).filter(Boolean);
   }
-
   return { command: cmdPart, zone, files };
 }
 
 function pushGeneratedFiles(files, zone) {
   const existing = files.filter((f) => fs.existsSync(f));
-  if (existing.length === 0) {
-    return { ok: false, message: "No listed files found on disk to push." };
-  }
-
+  if (existing.length === 0) return { ok: false, message: "No listed files found on disk to push." };
   try {
     execSync("git config user.name DF-B0T");
     execSync("git config user.email df-b0t[bot]@users.noreply.github.com");
-    for (const f of existing) {
-      execSync("git add -- " + JSON.stringify(f));
-    }
-    const msg = zone
-      ? "df-b0t: run " + zone + " - push generated files"
-      : "df-b0t: push generated files";
-    try {
-      execSync("git commit -m " + JSON.stringify(msg));
-    } catch {}
+    for (const f of existing) execSync("git add -- " + JSON.stringify(f));
+    const msg = zone ? "df-b0t: run " + zone + " - push generated files" : "df-b0t: push generated files";
+    try { execSync("git commit -m " + JSON.stringify(msg)); } catch {}
     execSync("git push origin HEAD:" + defaultBranch);
     return { ok: true, files: existing };
   } catch (err) {
@@ -306,7 +299,6 @@ function pushGeneratedFiles(files, zone) {
 
 async function main() {
   octokit = await createOctokitClient();
-
   const config = loadConfig();
   console.log("Event:", eventName);
 
@@ -344,28 +336,41 @@ async function main() {
     const body = event.comment.body.trim();
     const issueNumber = event.issue.number;
     const sender = event.comment.user.login;
-
     console.log("Comment from:", sender, "type:", event.comment.user.type);
     console.log("Body:", body.slice(0, 200));
-
-    if (event.comment.user.type === "Bot") {
-      console.log("Skipping bot comment");
-      return;
-    }
-    if (!isBotMention(body)) {
-      console.log("No @DF-B0T / @df-bot mention – skip");
-      return;
-    }
-
+    if (event.comment.user.type === "Bot") return;
+    if (!isBotMention(body)) return;
     const cmdBody = body;
 
-    if (/\bhelp\b/i.test(stripBotMention(cmdBody)) && !/(?:@df-bot|@df-b0t)\s+run\b/i.test(cmdBody) && !/(?:@df-bot|@df-b0t)\s+check\b/i.test(cmdBody) && config.features.help_command) {
+    if (/\bhelp\b/i.test(stripBotMention(cmdBody)) && !/(?:@df-bot|@df-b0t)\s+run\b/i.test(cmdBody) && !/(?:@df-bot|@df-b0t)\s+check\b/i.test(cmdBody) && !/(?:@df-bot|@df-b0t)\s+commit\b/i.test(cmdBody) && config.features.help_command) {
       await comment(issueNumber, config.commands?.help?.response || defaultConfig.commands.help.response);
       return;
     }
 
     if (/(?:@df-bot|@df-b0t)\s+check\b/i.test(cmdBody) && config.features.auto_check) {
       await runAutoCheck(issueNumber, config, defaultBranch);
+      return;
+    }
+
+    if (/(?:@df-bot|@df-b0t)\s+commit\s+/i.test(cmdBody) && config.features.commit_command) {
+      if (!(await guard("commit", sender, issueNumber, config))) return;
+      let rest = cmdBody.replace(/^.*?(?:@df-bot|@df-b0t)\s+commit\s+/i, "").trim();
+      let files = [];
+      const pIdx = rest.search(/\s\/P\/\s/i);
+      if (pIdx >= 0) {
+        files = rest.slice(pIdx).replace(/^\s\/P\/\s*/i, "").trim().split(/\s+/).filter(Boolean);
+        rest = rest.slice(0, pIdx).trim();
+      }
+      const message = rest || "df-b0t: commit";
+      const result = doCommit(message, files.length ? files : null);
+      if (result.ok) {
+        const fileNote = result.files && result.files.length
+          ? "\n\nFiles: " + result.files.map((f) => "`" + f + "`").join(", ")
+          : "\n\n(all changes)";
+        await comment(issueNumber, "✅ Committed and pushed.\n\n**Message:** `" + message + "`" + fileNote);
+      } else {
+        await comment(issueNumber, "❌ Commit failed: " + result.message);
+      }
       return;
     }
 
@@ -376,27 +381,17 @@ async function main() {
         await comment(issueNumber, "❌ Usage:\n```\n@DF-B0T run <command> /Z/ <name> /P/ file1 file2\n```");
         return;
       }
-
       const label = parsed.zone ? " (" + parsed.zone + ")" : "";
       try {
-        const output = execSync(parsed.command, {
-          encoding: "utf8",
-          timeout: 300000,
-          shell: true,
-          env: { ...process.env },
-        });
+        const output = execSync(parsed.command, { encoding: "utf8", timeout: 300000, shell: true, env: { ...process.env } });
         const trimmed = (output || "").trim().slice(0, 3000) || "(no output)";
-
         let pushNote = "";
         if (parsed.files.length > 0) {
           const result = pushGeneratedFiles(parsed.files, parsed.zone);
-          if (result.ok) {
-            pushNote = "\n\n📦 Pushed files: " + result.files.map((f) => "`" + f + "`").join(", ");
-          } else {
-            pushNote = "\n\n⚠️ Push failed: " + result.message;
-          }
+          pushNote = result.ok
+            ? "\n\n📦 Pushed files: " + result.files.map((f) => "`" + f + "`").join(", ")
+            : "\n\n⚠️ Push failed: " + result.message;
         }
-
         await comment(issueNumber, "✅ Run" + label + " finished.\n\n**Command:** `" + parsed.command + "`\n\n```\n" + trimmed + "\n```" + pushNote);
       } catch (err) {
         const msg = (err.stdout || err.stderr || err.message || "").toString().slice(0, 3000);
@@ -412,9 +407,7 @@ async function main() {
         try {
           await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [match[1]] });
           await comment(issueNumber, "✅ Label `" + match[1] + "` added.");
-        } catch {
-          await comment(issueNumber, "❌ Could not add label `" + match[1] + "`.");
-        }
+        } catch { await comment(issueNumber, "❌ Could not add label `" + match[1] + "`."); }
       }
       return;
     }
@@ -426,9 +419,7 @@ async function main() {
         try {
           await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: match[1] });
           await comment(issueNumber, "✅ Label `" + match[1] + "` removed.");
-        } catch {
-          await comment(issueNumber, "❌ Could not remove label `" + match[1] + "`.");
-        }
+        } catch { await comment(issueNumber, "❌ Could not remove label `" + match[1] + "`."); }
       }
       return;
     }
@@ -442,9 +433,7 @@ async function main() {
         try {
           await octokit.issues.addAssignees({ owner, repo, issue_number: issueNumber, assignees: [user] });
           await comment(issueNumber, "✅ Assigned @" + user + ".");
-        } catch {
-          await comment(issueNumber, "❌ Could not assign @" + user + ".");
-        }
+        } catch { await comment(issueNumber, "❌ Could not assign @" + user + "."); }
       }
       return;
     }
@@ -458,9 +447,7 @@ async function main() {
         try {
           await octokit.issues.removeAssignees({ owner, repo, issue_number: issueNumber, assignees: [user] });
           await comment(issueNumber, "✅ Unassigned @" + user + ".");
-        } catch {
-          await comment(issueNumber, "❌ Could not unassign @" + user + ".");
-        }
+        } catch { await comment(issueNumber, "❌ Could not unassign @" + user + "."); }
       }
       return;
     }
@@ -484,9 +471,7 @@ async function main() {
       try {
         await octokit.issues.lock({ owner, repo, issue_number: issueNumber });
         await comment(issueNumber, "🔒 Comments locked.");
-      } catch {
-        await comment(issueNumber, "❌ Failed to lock.");
-      }
+      } catch { await comment(issueNumber, "❌ Failed to lock."); }
       return;
     }
 
@@ -495,9 +480,7 @@ async function main() {
       try {
         await octokit.issues.unlock({ owner, repo, issue_number: issueNumber });
         await comment(issueNumber, "🔓 Comments unlocked.");
-      } catch {
-        await comment(issueNumber, "❌ Failed to unlock.");
-      }
+      } catch { await comment(issueNumber, "❌ Failed to unlock."); }
       return;
     }
 
@@ -508,9 +491,7 @@ async function main() {
         try {
           await octokit.issues.update({ owner, repo, issue_number: issueNumber, title: match[1].trim() });
           await comment(issueNumber, "✅ Title changed to: **" + match[1].trim() + "**");
-        } catch {
-          await comment(issueNumber, "❌ Could not change title.");
-        }
+        } catch { await comment(issueNumber, "❌ Could not change title."); }
       }
       return;
     }
@@ -526,12 +507,8 @@ async function main() {
           if (milestone) {
             await octokit.issues.update({ owner, repo, issue_number: issueNumber, milestone: milestone.number });
             await comment(issueNumber, "✅ Milestone **" + milestone.title + "** set.");
-          } else {
-            await comment(issueNumber, "❌ Milestone \"" + name + "\" not found.");
-          }
-        } catch {
-          await comment(issueNumber, "❌ Could not set milestone.");
-        }
+          } else await comment(issueNumber, "❌ Milestone \"" + name + "\" not found.");
+        } catch { await comment(issueNumber, "❌ Could not set milestone."); }
       }
       return;
     }
@@ -543,12 +520,8 @@ async function main() {
         try {
           await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-b0t: create " + match[1].trim());
           await comment(issueNumber, "✅ File `" + match[1].trim() + "` created and committed.");
-        } catch (err) {
-          await comment(issueNumber, "❌ Could not create file: " + err.message);
-        }
-      } else {
-        await comment(issueNumber, "❌ Usage: `@DF-B0T create-file path/to/file.txt | content here`");
-      }
+        } catch (err) { await comment(issueNumber, "❌ Could not create file: " + err.message); }
+      } else await comment(issueNumber, "❌ Usage: `@DF-B0T create-file path/to/file.txt | content here`");
       return;
     }
 
@@ -559,12 +532,8 @@ async function main() {
         try {
           await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-b0t: update " + match[1].trim());
           await comment(issueNumber, "✅ File `" + match[1].trim() + "` updated and committed.");
-        } catch (err) {
-          await comment(issueNumber, "❌ Could not update file: " + err.message);
-        }
-      } else {
-        await comment(issueNumber, "❌ Usage: `@DF-B0T update-file path/to/file.txt | new content`");
-      }
+        } catch (err) { await comment(issueNumber, "❌ Could not update file: " + err.message); }
+      } else await comment(issueNumber, "❌ Usage: `@DF-B0T update-file path/to/file.txt | new content`");
       return;
     }
 
@@ -575,9 +544,7 @@ async function main() {
         try {
           await deleteFile(match[1].trim(), "df-b0t: delete " + match[1].trim());
           await comment(issueNumber, "✅ File `" + match[1].trim() + "` deleted and committed.");
-        } catch (err) {
-          await comment(issueNumber, "❌ Could not delete file: " + err.message);
-        }
+        } catch (err) { await comment(issueNumber, "❌ Could not delete file: " + err.message); }
       }
       return;
     }
@@ -590,9 +557,7 @@ async function main() {
           const { data: ref } = await octokit.git.getRef({ owner, repo, ref: "heads/" + defaultBranch });
           await octokit.git.createRef({ owner, repo, ref: "refs/heads/" + match[1], sha: ref.object.sha });
           await comment(issueNumber, "✅ Branch `" + match[1] + "` created.");
-        } catch (err) {
-          await comment(issueNumber, "❌ Could not create branch: " + err.message);
-        }
+        } catch (err) { await comment(issueNumber, "❌ Could not create branch: " + err.message); }
       }
       return;
     }
@@ -608,16 +573,11 @@ async function main() {
             await octokit.git.createRef({ owner, repo, ref: "refs/heads/" + branchName, sha: ref.object.sha });
           } catch {}
           const { data: pr } = await octokit.pulls.create({
-            owner, repo,
-            title: match[1].trim(),
-            head: branchName,
-            base: defaultBranch,
+            owner, repo, title: match[1].trim(), head: branchName, base: defaultBranch,
             body: "Created by DF-B0T from issue #" + issueNumber,
           });
           await comment(issueNumber, "✅ Pull Request created: #" + pr.number + " – " + pr.html_url);
-        } catch (err) {
-          await comment(issueNumber, "❌ Could not create PR: " + err.message);
-        }
+        } catch (err) { await comment(issueNumber, "❌ Could not create PR: " + err.message); }
       }
       return;
     }
@@ -639,12 +599,8 @@ async function main() {
           pkg.version = newVersion;
           await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", "df-b0t: bump version to " + newVersion);
           await comment(issueNumber, "✅ Version bumped to **" + newVersion + "** and committed.");
-        } catch (err) {
-          await comment(issueNumber, "❌ Could not bump version: " + err.message);
-        }
-      } else {
-        await comment(issueNumber, "❌ Usage: `@DF-B0T bump patch` or `minor` or `major`");
-      }
+        } catch (err) { await comment(issueNumber, "❌ Could not bump version: " + err.message); }
+      } else await comment(issueNumber, "❌ Usage: `@DF-B0T bump patch` or `minor` or `major`");
       return;
     }
 
