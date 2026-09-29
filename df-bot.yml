@@ -41,11 +41,6 @@ contributor_only:
   - title
   - milestone
 
-allowed_runs:
-  help-runs: echo "Available runs are listed in df-bot.yml under allowed_runs"
-  node-version: node -v
-  npm-version: npm -v
-
 messages:
   issue_opened: |
     👋 Thanks for opening this issue!
@@ -63,39 +58,28 @@ commands:
     response: |
       ### 🤖 DF-Bot – All Commands
 
-      **Labels**
-      - `@df-bot label <name>` → Add a label
-      - `@df-bot unlabel <name>` → Remove a label
-
-      **Assignment**
-      - `@df-bot assign <username>` → Assign someone
-      - `@df-bot assign me` → Assign yourself
-      - `@df-bot unassign <username>` → Remove assignee
-      - `@df-bot unassign me` → Unassign yourself
-
-      **Status**
-      - `@df-bot close` → Close
-      - `@df-bot reopen` → Reopen
-      - `@df-bot lock` → Lock comments
-      - `@df-bot unlock` → Unlock comments
-
-      **Title & Milestone**
-      - `@df-bot title <new title>` → Change title
-      - `@df-bot milestone <name>` → Set milestone
-
-      **Commits & Files** (contributors only)
-      - `@df-bot create-file <path> | <content>` → Create file + commit
-      - `@df-bot update-file <path> | <content>` → Update file + commit
-      - `@df-bot delete-file <path>` → Delete file + commit
-      - `@df-bot create-branch <name>` → Create branch
-      - `@df-bot create-pr <title>` → Create Pull Request
-      - `@df-bot bump patch|minor|major` → Bump version
-
-      **Run** (contributors only, whitelist only)
-      - `@df-bot run <name>` → Run a predefined command from `allowed_runs`
-
-      **Help**
+      **Public**
       - `@df-bot help` → Show this help
+
+      **Contributors only**
+      - Labels / assign / close / lock / title / milestone
+      - Files: create-file, update-file, delete-file
+      - Git: create-branch, create-pr, bump
+
+      **Run any command** (contributors only)
+      ```
+      @df-bot run <command> /Z/ <name> /P/ file1 file2
+      ```
+      - command = shell command to execute
+      - `/Z/ name` = optional label for the run
+      - `/P/ files` = commit & push these generated files after the run
+
+      Examples:
+      ```
+      @df-bot run pip install opencomb /Z/ opencomb
+      @df-bot run opencomb --out . /P/ file.hello file.py
+      @df-bot run pip install opencomb /Z/ opencomb /P/ file.hello file.py
+      ```
 
 auto_labels:
   bug:
