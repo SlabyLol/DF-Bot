@@ -1,8 +1,3 @@
-/**
- * DF-Bot – Full featured GitHub Actions Bot
- * Supports commits, file changes, PRs, labels, assign, and more
- */
-
 import { Octokit } from "@octokit/rest";
 import fs from "fs";
 import yaml from "js-yaml";
@@ -16,7 +11,6 @@ const owner = event.repository.owner.login;
 const repo = event.repository.name;
 const defaultBranch = event.repository.default_branch || "main";
 
-// -------------------- Default Config --------------------
 const defaultConfig = {
   features: {
     welcome_issues: true,
@@ -34,7 +28,6 @@ const defaultConfig = {
     unlock_command: true,
     title_command: true,
     milestone_command: true,
-    // Commit features
     create_file_command: true,
     update_file_command: true,
     delete_file_command: true,
@@ -97,7 +90,6 @@ const defaultConfig = {
   },
 };
 
-// -------------------- Load Config --------------------
 function loadConfig() {
   try {
     if (fs.existsSync("df-bot.yml")) {
@@ -119,7 +111,6 @@ function loadConfig() {
   return defaultConfig;
 }
 
-// -------------------- Helpers --------------------
 async function comment(issueNumber, body) {
   await octokit.issues.createComment({ owner, repo, issue_number: issueNumber, body });
 }
@@ -197,12 +188,10 @@ async function doAutoAssign(issueNumber, existingLabels, config) {
   }
 }
 
-// -------------------- Main --------------------
 async function main() {
   const config = loadConfig();
   console.log("Event:", eventName);
 
-  // ===== New Issue =====
   if (eventName === "issues" && event.action === "opened") {
     const issueNumber = event.issue.number;
     const title = event.issue.title;
@@ -215,8 +204,7 @@ async function main() {
     await doAutoAssign(issueNumber, labels, config);
   }
 
-  // ===== New Pull Request =====
-  if (eventName === "pull_request" && event.action === "opened") {
+  if (eventName === "pull_request" && (event.action === "opened" || event.action === "reopened")) {
     const prNumber = event.pull_request.number;
     const title = event.pull_request.title;
     const labels = (event.pull_request.labels || []).map((l) => l.name);
@@ -228,7 +216,6 @@ async function main() {
     await doAutoAssign(prNumber, labels, config);
   }
 
-  // ===== Comment Commands =====
   if (eventName === "issue_comment" && event.action === "created") {
     const body = event.comment.body.trim();
     const lower = body.toLowerCase();
@@ -238,14 +225,12 @@ async function main() {
     if (event.comment.user.type === "Bot") return;
     if (!lower.includes("@df-bot")) return;
 
-    // HELP
     if (lower.includes("help") && config.features.help_command) {
       const text = config.commands?.help?.response || defaultConfig.commands.help.response;
       await comment(issueNumber, text);
       return;
     }
 
-    // LABEL
     if (lower.match(/@df-bot\s+label\s+/i) && config.features.label_command) {
       const match = body.match(/@df-bot\s+label\s+([\w-]+)/i);
       if (match) {
@@ -259,7 +244,6 @@ async function main() {
       return;
     }
 
-    // UNLABEL
     if (lower.match(/@df-bot\s+unlabel\s+/i) && config.features.unlabel_command) {
       const match = body.match(/@df-bot\s+unlabel\s+([\w-]+)/i);
       if (match) {
@@ -273,7 +257,6 @@ async function main() {
       return;
     }
 
-    // ASSIGN
     if (lower.match(/@df-bot\s+assign\s+/i) && config.features.assign_command) {
       const match = body.match(/@df-bot\s+assign\s+(@?[\w-]+)/i);
       if (match) {
@@ -289,7 +272,6 @@ async function main() {
       return;
     }
 
-    // UNASSIGN
     if (lower.match(/@df-bot\s+unassign\s+/i) && config.features.unassign_command) {
       const match = body.match(/@df-bot\s+unassign\s+(@?[\w-]+)/i);
       if (match) {
@@ -305,21 +287,18 @@ async function main() {
       return;
     }
 
-    // CLOSE
     if (lower.match(/@df-bot\s+close\b/i) && config.features.close_command) {
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "closed" });
       await comment(issueNumber, "✅ Closed.");
       return;
     }
 
-    // REOPEN
     if (lower.match(/@df-bot\s+reopen\b/i) && config.features.reopen_command) {
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "open" });
       await comment(issueNumber, "✅ Reopened.");
       return;
     }
 
-    // LOCK
     if (lower.match(/@df-bot\s+lock\b/i) && config.features.lock_command) {
       try {
         await octokit.issues.lock({ owner, repo, issue_number: issueNumber });
@@ -330,7 +309,6 @@ async function main() {
       return;
     }
 
-    // UNLOCK
     if (lower.match(/@df-bot\s+unlock\b/i) && config.features.unlock_command) {
       try {
         await octokit.issues.unlock({ owner, repo, issue_number: issueNumber });
@@ -341,7 +319,6 @@ async function main() {
       return;
     }
 
-    // TITLE
     if (lower.match(/@df-bot\s+title\s+/i) && config.features.title_command) {
       const match = body.match(/@df-bot\s+title\s+(.+)/i);
       if (match) {
@@ -355,7 +332,6 @@ async function main() {
       return;
     }
 
-    // MILESTONE
     if (lower.match(/@df-bot\s+milestone\s+/i) && config.features.milestone_command) {
       const match = body.match(/@df-bot\s+milestone\s+(.+)/i);
       if (match) {
@@ -376,10 +352,6 @@ async function main() {
       return;
     }
 
-    // ========== COMMIT FEATURES ==========
-
-    // CREATE-FILE
-    // Usage: @df-bot create-file path/to/file.txt | file content here
     if (lower.match(/@df-bot\s+create-file\s+/i) && config.features.create_file_command) {
       const match = body.match(/@df-bot\s+create-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
@@ -397,8 +369,6 @@ async function main() {
       return;
     }
 
-    // UPDATE-FILE
-    // Usage: @df-bot update-file path/to/file.txt | new content
     if (lower.match(/@df-bot\s+update-file\s+/i) && config.features.update_file_command) {
       const match = body.match(/@df-bot\s+update-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
@@ -416,8 +386,6 @@ async function main() {
       return;
     }
 
-    // DELETE-FILE
-    // Usage: @df-bot delete-file path/to/file.txt
     if (lower.match(/@df-bot\s+delete-file\s+/i) && config.features.delete_file_command) {
       const match = body.match(/@df-bot\s+delete-file\s+(.+)/i);
       if (match) {
@@ -432,8 +400,6 @@ async function main() {
       return;
     }
 
-    // CREATE-BRANCH
-    // Usage: @df-bot create-branch feature/my-branch
     if (lower.match(/@df-bot\s+create-branch\s+/i) && config.features.create_branch_command) {
       const match = body.match(/@df-bot\s+create-branch\s+([\w\/.-]+)/i);
       if (match) {
@@ -454,16 +420,12 @@ async function main() {
       return;
     }
 
-    // CREATE-PR
-    // Usage: @df-bot create-pr My PR title
     if (lower.match(/@df-bot\s+create-pr\s+/i) && config.features.create_pr_command) {
       const match = body.match(/@df-bot\s+create-pr\s+(.+)/i);
       if (match) {
         const title = match[1].trim();
         try {
-          // Create PR from a branch named after the issue
           const branchName = `df-bot/issue-${issueNumber}`;
-          // Ensure branch exists
           try {
             const { data: ref } = await octokit.git.getRef({ owner, repo, ref: `heads/${defaultBranch}` });
             await octokit.git.createRef({
@@ -472,9 +434,7 @@ async function main() {
               ref: `refs/heads/${branchName}`,
               sha: ref.object.sha,
             });
-          } catch {
-            // branch may already exist
-          }
+          } catch {}
 
           const { data: pr } = await octokit.pulls.create({
             owner,
@@ -492,8 +452,6 @@ async function main() {
       return;
     }
 
-    // BUMP VERSION
-    // Usage: @df-bot bump patch|minor|major
     if (lower.match(/@df-bot\s+bump\s+/i) && config.features.bump_version_command) {
       const match = body.match(/@df-bot\s+bump\s+(patch|minor|major)/i);
       if (match) {
