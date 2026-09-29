@@ -20,6 +20,31 @@ features:
   create_branch_command: true
   create_pr_command: true
   bump_version_command: true
+  run_command: true
+
+contributor_only:
+  - close
+  - reopen
+  - lock
+  - unlock
+  - create-file
+  - update-file
+  - delete-file
+  - create-branch
+  - create-pr
+  - bump
+  - run
+  - assign
+  - unassign
+  - label
+  - unlabel
+  - title
+  - milestone
+
+allowed_runs:
+  help-runs: echo "Available runs are listed in df-bot.yml under allowed_runs"
+  node-version: node -v
+  npm-version: npm -v
 
 messages:
   issue_opened: |
@@ -58,13 +83,16 @@ commands:
       - `@df-bot title <new title>` → Change title
       - `@df-bot milestone <name>` → Set milestone
 
-      **Commits & Files**
+      **Commits & Files** (contributors only)
       - `@df-bot create-file <path> | <content>` → Create file + commit
       - `@df-bot update-file <path> | <content>` → Update file + commit
       - `@df-bot delete-file <path>` → Delete file + commit
       - `@df-bot create-branch <name>` → Create branch
       - `@df-bot create-pr <title>` → Create Pull Request
-      - `@df-bot bump patch|minor|major` → Bump version in package.json
+      - `@df-bot bump patch|minor|major` → Bump version
+
+      **Run** (contributors only, whitelist only)
+      - `@df-bot run <name>` → Run a predefined command from `allowed_runs`
 
       **Help**
       - `@df-bot help` → Show this help
@@ -103,7 +131,7 @@ auto_assign:
 
 project:
   name: DF-Bot
-  description: GitHub Bot for automated project management with commit support
+  description: GitHub Bot for automated project management
   instructions: |
     - Always reply in English
     - Be short, clear and helpful
