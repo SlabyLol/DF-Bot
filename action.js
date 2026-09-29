@@ -13,6 +13,14 @@ const defaultBranch = event.repository?.default_branch || "main";
 
 let octokit;
 
+function isBotMention(text) {
+  return /@(df-bot|df-b0t)\b/i.test(text);
+}
+
+function stripBotMention(text) {
+  return text.replace(/@(df-bot|df-b0t)\b/gi, "").trim();
+}
+
 async function createOctokitClient() {
   const appId = process.env.APP_ID;
   let privateKey = process.env.PRIVATE_KEY;
@@ -33,7 +41,7 @@ async function createOctokitClient() {
       repo,
     });
 
-    console.log("Using GitHub App auth as DF-Bot[bot], installation:", installation.id);
+    console.log("Using GitHub App auth as DF-B0T[bot], installation:", installation.id);
 
     return new Octokit({
       authStrategy: createAppAuth,
@@ -80,15 +88,15 @@ const defaultConfig = {
     "unlabel", "title", "milestone",
   ],
   messages: {
-    issue_opened: "👋 Thanks for opening this issue!\n\nI'm **DF-Bot**. Type `@df-bot help` to see all commands.",
-    pull_request_opened: "🚀 Thanks for the pull request!\n\n**DF-Bot** is watching. Type `@df-bot help` for commands.",
+    issue_opened: "👋 Thanks for opening this issue!\n\nI'm **DF-B0T**. Type `@DF-B0T help` to see all commands.",
+    pull_request_opened: "🚀 Thanks for the pull request!\n\n**DF-B0T** is watching. Type `@DF-B0T help` for commands.",
   },
   commands: {
     help: {
-      response: `### 🤖 DF-Bot – All Commands
+      response: `### 🤖 DF-B0T – All Commands
 
 **Public**
-- \`@df-bot help\` → Show this help
+- \`@DF-B0T help\` → Show this help
 
 **Contributors only**
 - Labels / assign / close / lock / title / milestone
@@ -97,7 +105,7 @@ const defaultConfig = {
 
 **Run any command** (contributors only)
 \`\`\`
-@df-bot run <command> /Z/ <name> /P/ file1 file2
+@DF-B0T run <command> /Z/ <name> /P/ file1 file2
 \`\`\`
 - command = shell command
 - \`/Z/ name\` = optional label
@@ -105,9 +113,8 @@ const defaultConfig = {
 
 Examples:
 \`\`\`
-@df-bot run pip install opencomb /Z/ opencomb
-@df-bot run opencomb --out . /P/ file.hello file.py
-@df-bot run pip install opencomb /Z/ opencomb /P/ file.hello file.py
+@DF-B0T run pip install opencomb /Z/ opencomb
+@DF-B0T run opencomb --out . /P/ file.hello file.py
 \`\`\``,
     },
   },
@@ -235,7 +242,7 @@ async function guard(commandKey, sender, issueNumber, config) {
 }
 
 function parseRunCommand(body) {
-  const afterRun = body.replace(/^.*?@df-bot\s+run\s+/i, "").trim();
+  const afterRun = body.replace(/^.*?(?:@df-bot|@df-b0t)\s+run\s+/i, "").trim();
   if (!afterRun) return null;
 
   let zone = null;
@@ -273,14 +280,14 @@ function pushGeneratedFiles(files, zone) {
   }
 
   try {
-    execSync("git config user.name DF-Bot");
-    execSync("git config user.email df-bot[bot]@users.noreply.github.com");
+    execSync("git config user.name DF-B0T");
+    execSync("git config user.email df-b0t[bot]@users.noreply.github.com");
     for (const f of existing) {
       execSync("git add -- " + JSON.stringify(f));
     }
     const msg = zone
-      ? "df-bot: run " + zone + " - push generated files"
-      : "df-bot: push generated files";
+      ? "df-b0t: run " + zone + " - push generated files"
+      : "df-b0t: push generated files";
     try {
       execSync("git commit -m " + JSON.stringify(msg));
     } catch {
@@ -327,21 +334,32 @@ async function main() {
     const issueNumber = event.issue.number;
     const sender = event.comment.user.login;
 
-    if (event.comment.user.type === "Bot") return;
-    if (!lower.includes("@df-bot")) return;
+    console.log("Comment from:", sender, "type:", event.comment.user.type);
+    console.log("Body:", body.slice(0, 200));
 
-    if (lower.includes("help") && !lower.match(/@df-bot\s+run\b/i) && config.features.help_command) {
+    if (event.comment.user.type === "Bot") {
+      console.log("Skipping bot comment");
+      return;
+    }
+    if (!isBotMention(body)) {
+      console.log("No @DF-B0T / @df-bot mention – skip");
+      return;
+    }
+
+    const cmdBody = body;
+
+    if (/\bhelp\b/i.test(stripBotMention(cmdBody)) && !/(?:@df-bot|@df-b0t)\s+run\b/i.test(cmdBody) && config.features.help_command) {
       await comment(issueNumber, config.commands?.help?.response || defaultConfig.commands.help.response);
       return;
     }
 
-    if (lower.match(/@df-bot\s+run\s+/i) && config.features.run_command) {
+    if (/(?:@df-bot|@df-b0t)\s+run\s+/i.test(cmdBody) && config.features.run_command) {
       if (!(await guard("run", sender, issueNumber, config))) return;
-      const parsed = parseRunCommand(body);
+      const parsed = parseRunCommand(cmdBody);
       if (!parsed || !parsed.command) {
         await comment(
           issueNumber,
-          "❌ Usage:\n```\n@df-bot run <command> /Z/ <name> /P/ file1 file2\n```\nExample:\n```\n@df-bot run pip install opencomb /Z/ opencomb /P/ file.hello file.py\n```"
+          "❌ Usage:\n```\n@DF-B0T run <command> /Z/ <name> /P/ file1 file2\n```"
         );
         return;
       }
@@ -380,9 +398,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+label\s+/i) && config.features.label_command) {
+    if (/(?:@df-bot|@df-b0t)\s+label\s+/i.test(cmdBody) && config.features.label_command) {
       if (!(await guard("label", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+label\s+([\w-]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+label\s+([\w-]+)/i);
       if (match) {
         try {
           await octokit.issues.addLabels({ owner, repo, issue_number: issueNumber, labels: [match[1]] });
@@ -394,9 +412,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+unlabel\s+/i) && config.features.unlabel_command) {
+    if (/(?:@df-bot|@df-b0t)\s+unlabel\s+/i.test(cmdBody) && config.features.unlabel_command) {
       if (!(await guard("unlabel", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+unlabel\s+([\w-]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+unlabel\s+([\w-]+)/i);
       if (match) {
         try {
           await octokit.issues.removeLabel({ owner, repo, issue_number: issueNumber, name: match[1] });
@@ -408,9 +426,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+assign\s+/i) && config.features.assign_command) {
+    if (/(?:@df-bot|@df-b0t)\s+assign\s+/i.test(cmdBody) && config.features.assign_command) {
       if (!(await guard("assign", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+assign\s+(@?[\w-]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+assign\s+(@?[\w-]+)/i);
       if (match) {
         let user = match[1].replace("@", "");
         if (user.toLowerCase() === "me") user = sender;
@@ -424,9 +442,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+unassign\s+/i) && config.features.unassign_command) {
+    if (/(?:@df-bot|@df-b0t)\s+unassign\s+/i.test(cmdBody) && config.features.unassign_command) {
       if (!(await guard("unassign", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+unassign\s+(@?[\w-]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+unassign\s+(@?[\w-]+)/i);
       if (match) {
         let user = match[1].replace("@", "");
         if (user.toLowerCase() === "me") user = sender;
@@ -440,21 +458,21 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+close\b/i) && config.features.close_command) {
+    if (/(?:@df-bot|@df-b0t)\s+close\b/i.test(cmdBody) && config.features.close_command) {
       if (!(await guard("close", sender, issueNumber, config))) return;
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "closed" });
       await comment(issueNumber, "✅ Closed.");
       return;
     }
 
-    if (lower.match(/@df-bot\s+reopen\b/i) && config.features.reopen_command) {
+    if (/(?:@df-bot|@df-b0t)\s+reopen\b/i.test(cmdBody) && config.features.reopen_command) {
       if (!(await guard("reopen", sender, issueNumber, config))) return;
       await octokit.issues.update({ owner, repo, issue_number: issueNumber, state: "open" });
       await comment(issueNumber, "✅ Reopened.");
       return;
     }
 
-    if (lower.match(/@df-bot\s+lock\b/i) && config.features.lock_command) {
+    if (/(?:@df-bot|@df-b0t)\s+lock\b/i.test(cmdBody) && config.features.lock_command) {
       if (!(await guard("lock", sender, issueNumber, config))) return;
       try {
         await octokit.issues.lock({ owner, repo, issue_number: issueNumber });
@@ -465,7 +483,7 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+unlock\b/i) && config.features.unlock_command) {
+    if (/(?:@df-bot|@df-b0t)\s+unlock\b/i.test(cmdBody) && config.features.unlock_command) {
       if (!(await guard("unlock", sender, issueNumber, config))) return;
       try {
         await octokit.issues.unlock({ owner, repo, issue_number: issueNumber });
@@ -476,9 +494,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+title\s+/i) && config.features.title_command) {
+    if (/(?:@df-bot|@df-b0t)\s+title\s+/i.test(cmdBody) && config.features.title_command) {
       if (!(await guard("title", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+title\s+(.+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+title\s+(.+)/i);
       if (match) {
         try {
           await octokit.issues.update({ owner, repo, issue_number: issueNumber, title: match[1].trim() });
@@ -490,9 +508,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+milestone\s+/i) && config.features.milestone_command) {
+    if (/(?:@df-bot|@df-b0t)\s+milestone\s+/i.test(cmdBody) && config.features.milestone_command) {
       if (!(await guard("milestone", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+milestone\s+(.+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+milestone\s+(.+)/i);
       if (match) {
         const name = match[1].trim();
         try {
@@ -511,44 +529,44 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+create-file\s+/i) && config.features.create_file_command) {
+    if (/(?:@df-bot|@df-b0t)\s+create-file\s+/i.test(cmdBody) && config.features.create_file_command) {
       if (!(await guard("create-file", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+create-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+create-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
         try {
-          await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-bot: create " + match[1].trim());
+          await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-b0t: create " + match[1].trim());
           await comment(issueNumber, "✅ File `" + match[1].trim() + "` created and committed.");
         } catch (err) {
           await comment(issueNumber, "❌ Could not create file: " + err.message);
         }
       } else {
-        await comment(issueNumber, "❌ Usage: `@df-bot create-file path/to/file.txt | content here`");
+        await comment(issueNumber, "❌ Usage: `@DF-B0T create-file path/to/file.txt | content here`");
       }
       return;
     }
 
-    if (lower.match(/@df-bot\s+update-file\s+/i) && config.features.update_file_command) {
+    if (/(?:@df-bot|@df-b0t)\s+update-file\s+/i.test(cmdBody) && config.features.update_file_command) {
       if (!(await guard("update-file", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+update-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+update-file\s+(.+?)\s*\|\s*([\s\S]+)/i);
       if (match) {
         try {
-          await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-bot: update " + match[1].trim());
+          await createOrUpdateFile(match[1].trim(), match[2].trim(), "df-b0t: update " + match[1].trim());
           await comment(issueNumber, "✅ File `" + match[1].trim() + "` updated and committed.");
         } catch (err) {
           await comment(issueNumber, "❌ Could not update file: " + err.message);
         }
       } else {
-        await comment(issueNumber, "❌ Usage: `@df-bot update-file path/to/file.txt | new content`");
+        await comment(issueNumber, "❌ Usage: `@DF-B0T update-file path/to/file.txt | new content`");
       }
       return;
     }
 
-    if (lower.match(/@df-bot\s+delete-file\s+/i) && config.features.delete_file_command) {
+    if (/(?:@df-bot|@df-b0t)\s+delete-file\s+/i.test(cmdBody) && config.features.delete_file_command) {
       if (!(await guard("delete-file", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+delete-file\s+(.+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+delete-file\s+(.+)/i);
       if (match) {
         try {
-          await deleteFile(match[1].trim(), "df-bot: delete " + match[1].trim());
+          await deleteFile(match[1].trim(), "df-b0t: delete " + match[1].trim());
           await comment(issueNumber, "✅ File `" + match[1].trim() + "` deleted and committed.");
         } catch (err) {
           await comment(issueNumber, "❌ Could not delete file: " + err.message);
@@ -557,9 +575,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+create-branch\s+/i) && config.features.create_branch_command) {
+    if (/(?:@df-bot|@df-b0t)\s+create-branch\s+/i.test(cmdBody) && config.features.create_branch_command) {
       if (!(await guard("create-branch", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+create-branch\s+([\w\/.-]+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+create-branch\s+([\w\/.-]+)/i);
       if (match) {
         try {
           const { data: ref } = await octokit.git.getRef({ owner, repo, ref: "heads/" + defaultBranch });
@@ -572,12 +590,12 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+create-pr\s+/i) && config.features.create_pr_command) {
+    if (/(?:@df-bot|@df-b0t)\s+create-pr\s+/i.test(cmdBody) && config.features.create_pr_command) {
       if (!(await guard("create-pr", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+create-pr\s+(.+)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+create-pr\s+(.+)/i);
       if (match) {
         try {
-          const branchName = "df-bot/issue-" + issueNumber;
+          const branchName = "df-b0t/issue-" + issueNumber;
           try {
             const { data: ref } = await octokit.git.getRef({ owner, repo, ref: "heads/" + defaultBranch });
             await octokit.git.createRef({ owner, repo, ref: "refs/heads/" + branchName, sha: ref.object.sha });
@@ -587,7 +605,7 @@ async function main() {
             title: match[1].trim(),
             head: branchName,
             base: defaultBranch,
-            body: "Created by DF-Bot from issue #" + issueNumber,
+            body: "Created by DF-B0T from issue #" + issueNumber,
           });
           await comment(issueNumber, "✅ Pull Request created: #" + pr.number + " – " + pr.html_url);
         } catch (err) {
@@ -597,9 +615,9 @@ async function main() {
       return;
     }
 
-    if (lower.match(/@df-bot\s+bump\s+/i) && config.features.bump_version_command) {
+    if (/(?:@df-bot|@df-b0t)\s+bump\s+/i.test(cmdBody) && config.features.bump_version_command) {
       if (!(await guard("bump", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+bump\s+(patch|minor|major)/i);
+      const match = cmdBody.match(/(?:@df-bot|@df-b0t)\s+bump\s+(patch|minor|major)/i);
       if (match) {
         const type = match[1].toLowerCase();
         try {
@@ -612,16 +630,18 @@ async function main() {
           else { parts[2] += 1; }
           const newVersion = parts.join(".");
           pkg.version = newVersion;
-          await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", "df-bot: bump version to " + newVersion);
+          await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", "df-b0t: bump version to " + newVersion);
           await comment(issueNumber, "✅ Version bumped to **" + newVersion + "** and committed.");
         } catch (err) {
           await comment(issueNumber, "❌ Could not bump version: " + err.message);
         }
       } else {
-        await comment(issueNumber, "❌ Usage: `@df-bot bump patch` or `minor` or `major`");
+        await comment(issueNumber, "❌ Usage: `@DF-B0T bump patch` or `minor` or `major`");
       }
       return;
     }
+
+    console.log("Mentioned bot but no matching command");
   }
 }
 
