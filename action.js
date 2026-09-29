@@ -38,28 +38,10 @@ const defaultConfig = {
     run_command: true,
   },
   contributor_only: [
-    "close",
-    "reopen",
-    "lock",
-    "unlock",
-    "create-file",
-    "update-file",
-    "delete-file",
-    "create-branch",
-    "create-pr",
-    "bump",
-    "run",
-    "assign",
-    "unassign",
-    "label",
-    "unlabel",
-    "title",
-    "milestone",
+    "close", "reopen", "lock", "unlock", "create-file", "update-file", "delete-file",
+    "create-branch", "create-pr", "bump", "run", "assign", "unassign", "label",
+    "unlabel", "title", "milestone",
   ],
-  allowed_runs: {
-    "node-version": "node -v",
-    "npm-version": "npm -v",
-  },
   messages: {
     issue_opened: "👋 Thanks for opening this issue!\n\nI'm **DF-Bot**. Type `@df-bot help` to see all commands.",
     pull_request_opened: "🚀 Thanks for the pull request!\n\n**DF-Bot** is watching. Type `@df-bot help` for commands.",
@@ -72,17 +54,24 @@ const defaultConfig = {
 - \`@df-bot help\` → Show this help
 
 **Contributors only**
-- Labels: \`label\`, \`unlabel\`
-- Assign: \`assign\`, \`unassign\`
-- Status: \`close\`, \`reopen\`, \`lock\`, \`unlock\`
-- Title/Milestone: \`title\`, \`milestone\`
-- Files: \`create-file\`, \`update-file\`, \`delete-file\`
-- Git: \`create-branch\`, \`create-pr\`, \`bump\`
-- Run: \`@df-bot run <name>\` (only names from allowed_runs in df-bot.yml)
+- Labels / assign / close / lock / title / milestone
+- Files: create-file, update-file, delete-file
+- Git: create-branch, create-pr, bump
 
-How to trigger without a new issue:
-1. Comment on any existing issue/PR
-2. Or: Actions → DF-Bot → Run workflow`,
+**Run any command** (contributors only)
+\`\`\`
+@df-bot run <command> /Z/ <name> /P/ file1 file2
+\`\`\`
+- command = shell command
+- \`/Z/ name\` = optional label
+- \`/P/ files\` = commit & push these files after the run
+
+Examples:
+\`\`\`
+@df-bot run pip install opencomb /Z/ opencomb
+@df-bot run opencomb --out . /P/ file.hello file.py
+@df-bot run pip install opencomb /Z/ opencomb /P/ file.hello file.py
+\`\`\``,
     },
   },
   auto_labels: {
@@ -114,7 +103,6 @@ function loadConfig() {
         auto_labels: userConfig.auto_labels || defaultConfig.auto_labels,
         auto_assign: { ...defaultConfig.auto_assign, ...(userConfig.auto_assign || {}) },
         contributor_only: userConfig.contributor_only || defaultConfig.contributor_only,
-        allowed_runs: userConfig.allowed_runs || defaultConfig.allowed_runs,
       };
     }
   } catch (err) {
@@ -125,11 +113,7 @@ function loadConfig() {
 
 async function isContributor(username) {
   try {
-    const { data } = await octokit.repos.getCollaboratorPermissionLevel({
-      owner,
-      repo,
-      username,
-    });
+    const { data } = await octokit.repos.getCollaboratorPermissionLevel({ owner, repo, username });
     return ["admin", "maintain", "write"].includes(data.permission);
   } catch {
     return false;
@@ -137,8 +121,7 @@ async function isContributor(username) {
 }
 
 function requiresContributor(commandKey, config) {
-  const list = config.contributor_only || [];
-  return list.includes(commandKey);
+  return (config.contributor_only || []).includes(commandKey);
 }
 
 async function comment(issueNumber, body) {
@@ -158,16 +141,12 @@ async function getFileSha(path, branch = defaultBranch) {
 async function createOrUpdateFile(path, content, message, branch = defaultBranch) {
   const sha = await getFileSha(path, branch);
   const params = {
-    owner,
-    repo,
-    path,
-    message,
+    owner, repo, path, message,
     content: Buffer.from(content).toString("base64"),
     branch,
   };
   if (sha) params.sha = sha;
-  const { data } = await octokit.repos.createOrUpdateFileContents(params);
-  return data;
+  return (await octokit.repos.createOrUpdateFileContents(params)).data;
 }
 
 async function deleteFile(path, message, branch = defaultBranch) {
@@ -181,9 +160,7 @@ async function addAutoLabels(issueNumber, title, config) {
   const titleLower = title.toLowerCase();
   const labelsToAdd = [];
   for (const [label, keywords] of Object.entries(config.auto_labels)) {
-    if (keywords.some((kw) => titleLower.includes(String(kw).toLowerCase()))) {
-      labelsToAdd.push(label);
-    }
+    if (keywords.some((kw) => titleLower.includes(String(kw).toLowerCase()))) labelsToAdd.push(label);
   }
   if (labelsToAdd.length > 0) {
     try {
@@ -199,12 +176,10 @@ async function doAutoAssign(issueNumber, existingLabels, config) {
   if (!config.features.auto_assign || !aa?.enabled || !aa.assignees?.length) return;
   if (aa.ignore_labels?.some((l) => existingLabels.includes(l))) return;
   if (aa.only_labels?.length > 0 && !aa.only_labels.some((l) => existingLabels.includes(l))) return;
-
   let chosen = [];
   if (aa.strategy === "all") chosen = aa.assignees;
   else if (aa.strategy === "random") chosen = [aa.assignees[Math.floor(Math.random() * aa.assignees.length)]];
   else chosen = [aa.assignees[issueNumber % aa.assignees.length]];
-
   try {
     await octokit.issues.addAssignees({ owner, repo, issue_number: issueNumber, assignees: chosen });
   } catch (err) {
@@ -222,12 +197,66 @@ async function guard(commandKey, sender, issueNumber, config) {
   return true;
 }
 
+function parseRunCommand(body) {
+  const afterRun = body.replace(/^.*?@df-bot\s+run\s+/i, "").trim();
+  if (!afterRun) return null;
+
+  let zone = null;
+  let files = [];
+  let cmdPart = afterRun;
+
+  const zIdx = afterRun.search(/\s\/Z\/\s/i);
+  const pIdx = afterRun.search(/\s\/P\/\s/i);
+
+  const markers = [];
+  if (zIdx >= 0) markers.push({ type: "Z", idx: zIdx });
+  if (pIdx >= 0) markers.push({ type: "P", idx: pIdx });
+  markers.sort((a, b) => a.idx - b.idx);
+
+  if (markers.length === 0) {
+    return { command: afterRun.trim(), zone: null, files: [] };
+  }
+
+  cmdPart = afterRun.slice(0, markers[0].idx).trim();
+
+  for (let i = 0; i < markers.length; i++) {
+    const start = markers[i].idx;
+    const end = i + 1 < markers.length ? markers[i + 1].idx : afterRun.length;
+    const segment = afterRun.slice(start, end).replace(/^\s\/[ZP]\/\s*/i, "").trim();
+    if (markers[i].type === "Z") zone = segment.split(/\s+/)[0] || segment;
+    if (markers[i].type === "P") files = segment.split(/\s+/).filter(Boolean);
+  }
+
+  return { command: cmdPart, zone, files };
+}
+
+function pushGeneratedFiles(files, zone) {
+  const existing = files.filter((f) => fs.existsSync(f));
+  if (existing.length === 0) {
+    return { ok: false, message: "No listed files found on disk to push." };
+  }
+
+  try {
+    execSync('git config user.name "DF-Bot"');
+    execSync('git config user.email "df-bot[bot]@users.noreply.github.com"');
+    for (const f of existing) {
+      execSync(`git add -- "${f.replace(/"/g, "\\"")}"`);
+    }
+    const msg = zone ? `df-bot: run ${zone} – push generated files` : "df-bot: push generated files";
+    execSync(`git commit -m "${msg.replace(/"/g, "\\"")}" || true`);
+    execSync(`git push origin HEAD:${defaultBranch}`);
+    return { ok: true, files: existing };
+  } catch (err) {
+    return { ok: false, message: (err.stderr || err.message || String(err)).toString().slice(0, 1500) };
+  }
+}
+
 async function main() {
   const config = loadConfig();
   console.log("Event:", eventName);
 
   if (eventName === "workflow_dispatch") {
-    console.log("Manual run – no issue context. Use issue comments for bot commands.");
+    console.log("Manual run – use issue comments for bot commands.");
     return;
   }
 
@@ -235,10 +264,7 @@ async function main() {
     const issueNumber = event.issue.number;
     const title = event.issue.title;
     const labels = (event.issue.labels || []).map((l) => l.name);
-
-    if (config.features.welcome_issues) {
-      await comment(issueNumber, config.messages.issue_opened);
-    }
+    if (config.features.welcome_issues) await comment(issueNumber, config.messages.issue_opened);
     await addAutoLabels(issueNumber, title, config);
     await doAutoAssign(issueNumber, labels, config);
   }
@@ -247,10 +273,7 @@ async function main() {
     const prNumber = event.pull_request.number;
     const title = event.pull_request.title;
     const labels = (event.pull_request.labels || []).map((l) => l.name);
-
-    if (config.features.welcome_pull_requests) {
-      await comment(prNumber, config.messages.pull_request_opened);
-    }
+    if (config.features.welcome_pull_requests) await comment(prNumber, config.messages.pull_request_opened);
     await addAutoLabels(prNumber, title, config);
     await doAutoAssign(prNumber, labels, config);
   }
@@ -264,38 +287,49 @@ async function main() {
     if (event.comment.user.type === "Bot") return;
     if (!lower.includes("@df-bot")) return;
 
-    if (lower.includes("help") && config.features.help_command) {
-      const text = config.commands?.help?.response || defaultConfig.commands.help.response;
-      await comment(issueNumber, text);
+    if (lower.includes("help") && !lower.match(/@df-bot\s+run\b/i) && config.features.help_command) {
+      await comment(issueNumber, config.commands?.help?.response || defaultConfig.commands.help.response);
       return;
     }
 
     if (lower.match(/@df-bot\s+run\s+/i) && config.features.run_command) {
       if (!(await guard("run", sender, issueNumber, config))) return;
-      const match = body.match(/@df-bot\s+run\s+([\w.-]+)/i);
-      if (!match) {
-        const names = Object.keys(config.allowed_runs || {}).join(", ") || "(none configured)";
-        await comment(issueNumber, `❌ Usage: \`@df-bot run <name>\`\nAllowed: ${names}`);
+      const parsed = parseRunCommand(body);
+      if (!parsed || !parsed.command) {
+        await comment(
+          issueNumber,
+          "❌ Usage:\n```\n@df-bot run <command> /Z/ <name> /P/ file1 file2\n```\nExample:\n```\n@df-bot run pip install opencomb /Z/ opencomb /P/ file.hello file.py\n```"
+        );
         return;
       }
-      const runName = match[1];
-      const cmd = config.allowed_runs?.[runName];
-      if (!cmd) {
-        const names = Object.keys(config.allowed_runs || {}).join(", ") || "(none)";
-        await comment(issueNumber, `❌ Unknown run \`${runName}\`. Allowed: ${names}`);
-        return;
-      }
+
+      const label = parsed.zone ? ` (${parsed.zone})` : "";
       try {
-        const output = execSync(String(cmd), {
+        const output = execSync(parsed.command, {
           encoding: "utf8",
-          timeout: 60000,
+          timeout: 300000,
           shell: true,
+          env: { ...process.env },
         });
-        const trimmed = (output || "").trim().slice(0, 3500) || "(no output)";
-        await comment(issueNumber, `✅ Run \`${runName}\` finished.\n\n\`\`\`\n${trimmed}\n\`\`\``);
+        const trimmed = (output || "").trim().slice(0, 3000) || "(no output)";
+
+        let pushNote = "";
+        if (parsed.files.length > 0) {
+          const result = pushGeneratedFiles(parsed.files, parsed.zone);
+          if (result.ok) {
+            pushNote = `\n\n📦 Pushed files: ${result.files.map((f) => "`" + f + "`").join(", ")}`;
+          } else {
+            pushNote = `\n\n⚠️ Push failed: ${result.message}`;
+          }
+        }
+
+        await comment(
+          issueNumber,
+          `✅ Run${label} finished.\n\n**Command:** \`${parsed.command}\`\n\n\`\`\`\n${trimmed}\n\`\`\`${pushNote}`
+        );
       } catch (err) {
-        const msg = (err.stdout || err.stderr || err.message || "").toString().slice(0, 3500);
-        await comment(issueNumber, `❌ Run \`${runName}\` failed.\n\n\`\`\`\n${msg}\n\`\`\``);
+        const msg = (err.stdout || err.stderr || err.message || "").toString().slice(0, 3000);
+        await comment(issueNumber, `❌ Run${label} failed.\n\n**Command:** \`${parsed.command}\`\n\n\`\`\`\n${msg}\n\`\`\``);
       }
       return;
     }
@@ -503,8 +537,7 @@ async function main() {
             await octokit.git.createRef({ owner, repo, ref: `refs/heads/${branchName}`, sha: ref.object.sha });
           } catch {}
           const { data: pr } = await octokit.pulls.create({
-            owner,
-            repo,
+            owner, repo,
             title: match[1].trim(),
             head: branchName,
             base: defaultBranch,
@@ -528,16 +561,9 @@ async function main() {
           const content = Buffer.from(file.content, "base64").toString("utf8");
           const pkg = JSON.parse(content);
           const parts = (pkg.version || "0.0.0").split(".").map(Number);
-          if (type === "major") {
-            parts[0] += 1;
-            parts[1] = 0;
-            parts[2] = 0;
-          } else if (type === "minor") {
-            parts[1] += 1;
-            parts[2] = 0;
-          } else {
-            parts[2] += 1;
-          }
+          if (type === "major") { parts[0] += 1; parts[1] = 0; parts[2] = 0; }
+          else if (type === "minor") { parts[1] += 1; parts[2] = 0; }
+          else { parts[2] += 1; }
           const newVersion = parts.join(".");
           pkg.version = newVersion;
           await createOrUpdateFile("package.json", JSON.stringify(pkg, null, 2) + "\n", `df-bot: bump version to ${newVersion}`);
